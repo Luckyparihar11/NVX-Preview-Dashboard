@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NVX Preview Dashboard — System Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --nvx:      #f59e0b;
+    --config:   #c084fc;
+    --backend:  #34d399;
+    --frontend: #38bdf8;
+    --flow:     #f1f5f9;
+    --bg:       #060a12;
+    --surface:  #0d1420;
+    --border:   #1e2d40;
+    --text:     #e2e8f0;
+    --muted:    #64748b;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Grid noise texture overlay ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(56,189,248,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(56,189,248,0.015) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .page {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  /* ── Header ── */
+  .header {
+    text-align: center;
+    margin-bottom: 56px;
+  }
+  .header-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 4px;
+    color: var(--nvx);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .header-title {
+    font-size: clamp(28px, 5vw, 48px);
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1.1;
+    background: linear-gradient(135deg, #e2e8f0 0%, #38bdf8 50%, #34d399 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 12px;
+  }
+  .header-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+
+  /* ── Layer wrapper ── */
+  .layer {
+    margin-bottom: 12px;
+    position: relative;
+  }
+
+  .layer-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border-radius: 4px 4px 0 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .layer-label .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .layer-body {
+    border-radius: 0 8px 8px 8px;
+    padding: 20px 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .layer-row {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  /* ── Node cards ── */
+  .node {
+    flex: 1;
+    min-width: 140px;
+    border-radius: 8px;
+    padding: 14px 16px;
+    position: relative;
+    cursor: default;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .node:hover {
+    transform: translateY(-2px);
+  }
+  .node-icon {
+    font-size: 18px;
+    margin-bottom: 8px;
+    display: block;
+  }
+  .node-title {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    letter-spacing: 0.3px;
+  }
+  .node-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .node-tag {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-top: 8px;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── Flow arrows between layers ── */
+  .flow-connector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 0;
+    gap: 0;
+    position: relative;
+  }
+
+  .flow-line {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    flex: 1;
+    max-width: 600px;
+  }
+
+  .flow-arrow-track {
+    width: 2px;
+    height: 32px;
+    position: relative;
+    overflow: hidden;
+  }
+  .flow-arrow-track::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 200%;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 6px,
+      currentColor 6px,
+      currentColor 12px
+    );
+    animation: flow-down 0.8s linear infinite;
+  }
+  @keyframes flow-down {
+    from { transform: translateY(-50%); }
+    to   { transform: translateY(0); }
+  }
+
+  .flow-arrowhead {
+    width: 0; height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+  }
+
+  .flow-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 1px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin: 4px 0;
+    white-space: nowrap;
+  }
+
+  /* ── Multi-arrow connector (NVX → Backend) ── */
+  .multi-flow {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 8px 0;
+    position: relative;
+  }
+  .multi-flow svg {
+    width: 100%;
+    max-width: 700px;
+    overflow: visible;
+  }
+
+  /* ── Internal flow within backend ── */
+  .internal-flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 4px 0;
+  }
+  .internal-arrow {
+    flex: 1;
+    height: 2px;
+    position: relative;
+    overflow: visible;
+    display: flex;
+    align-items: center;
+  }
+  .internal-arrow-line {
+    flex: 1;
+    height: 2px;
+    position: relative;
+    overflow: hidden;
+  }
+  .internal-arrow-line::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 200%;
+    height: 100%;
+    background: repeating-linear-gradient(
+      to right,
+      transparent 0,
+      transparent 6px,
+      currentColor 6px,
+      currentColor 12px
+    );
+    animation: flow-right 0.8s linear infinite;
+  }
+  @keyframes flow-right {
+    from { transform: translateX(-50%); }
+    to   { transform: translateX(0); }
+  }
+  .internal-arrowhead {
+    width: 0; height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+  }
+  .internal-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    text-align: center;
+    padding: 2px 0;
+    letter-spacing: 0.5px;
+  }
+  .internal-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+  }
+
+  /* ── How to use section ── */
+  .how-section {
+    margin-top: 52px;
+  }
+  .section-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 4px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+  .steps-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+  }
+  .step-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px;
+    position: relative;
+    overflow: hidden;
+  }
+  .step-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .step-num {
+    font-size: 32px;
+    font-weight: 800;
+    opacity: 0.08;
+    position: absolute;
+    top: 8px; right: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 1;
+  }
+  .step-icon { font-size: 20px; margin-bottom: 10px; display: block; }
+  .step-title {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .step-desc {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .step-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 8px;
+    margin-top: 8px;
+    color: #94a3b8;
+    display: block;
+  }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 32px;
+    padding: 12px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+  .legend-dot {
+    width: 8px; height: 8px;
+    border-radius: 2px;
+  }
+
+  /* ── Feedback badges ── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    margin: 2px 2px 0 0;
+  }
+
+  /* Color themes per layer */
+  .layer--nvx .layer-label      { background: rgba(245,158,11,0.12); color: var(--nvx); }
+  .layer--nvx .layer-label .dot { background: var(--nvx); }
+  .layer--nvx .layer-body       { background: rgba(245,158,11,0.04); border: 1px solid rgba(245,158,11,0.2); }
+  .layer--nvx .node             { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); }
+  .layer--nvx .node:hover       { box-shadow: 0 4px 20px rgba(245,158,11,0.2); }
+  .layer--nvx .node-title       { color: var(--nvx); }
+  .layer--nvx .node-tag         { background: rgba(245,158,11,0.15); color: var(--nvx); }
+
+  .layer--config .layer-label      { background: rgba(192,132,252,0.12); color: var(--config); }
+  .layer--config .layer-label .dot { background: var(--config); }
+  .layer--config .layer-body       { background: rgba(192,132,252,0.04); border: 1px solid rgba(192,132,252,0.2); }
+  .layer--config .node             { background: rgba(192,132,252,0.08); border: 1px solid rgba(192,132,252,0.2); }
+  .layer--config .node:hover       { box-shadow: 0 4px 20px rgba(192,132,252,0.2); }
+  .layer--config .node-title       { color: var(--config); }
+  .layer--config .node-tag         { background: rgba(192,132,252,0.15); color: var(--config); }
+
+  .layer--backend .layer-label      { background: rgba(52,211,153,0.12); color: var(--backend); }
+  .layer--backend .layer-label .dot { background: var(--backend); }
+  .layer--backend .layer-body       { background: rgba(52,211,153,0.04); border: 1px solid rgba(52,211,153,0.2); }
+  .layer--backend .node             { background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.2); }
+  .layer--backend .node:hover       { box-shadow: 0 4px 20px rgba(52,211,153,0.2); }
+  .layer--backend .node-title       { color: var(--backend); }
+  .layer--backend .node-tag         { background: rgba(52,211,153,0.15); color: var(--backend); }
+
+  .layer--frontend .layer-label      { background: rgba(56,189,248,0.12); color: var(--frontend); }
+  .layer--frontend .layer-label .dot { background: var(--frontend); }
+  .layer--frontend .layer-body       { background: rgba(56,189,248,0.04); border: 1px solid rgba(56,189,248,0.2); }
+  .layer--frontend .node             { background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.2); }
+  .layer--frontend .node:hover       { box-shadow: 0 4px 20px rgba(56,189,248,0.2); }
+  .layer--frontend .node-title       { color: var(--frontend); }
+  .layer--frontend .node-tag         { background: rgba(56,189,248,0.15); color: var(--frontend); }
+
+  .flow--nvx    .flow-arrow-track::before { color: var(--nvx); }
+  .flow--nvx    .flow-arrowhead           { border-top-color: var(--nvx); }
+  .flow--nvx    .flow-label               { background: rgba(245,158,11,0.1); color: var(--nvx); border: 1px solid rgba(245,158,11,0.2); }
+
+  .flow--config .flow-arrow-track::before { color: var(--config); }
+  .flow--config .flow-arrowhead           { border-top-color: var(--config); }
+  .flow--config .flow-label               { background: rgba(192,132,252,0.1); color: var(--config); border: 1px solid rgba(192,132,252,0.2); }
+
+  .flow--backend .flow-arrow-track::before { color: var(--backend); }
+  .flow--backend .flow-arrowhead           { border-top-color: var(--backend); }
+  .flow--backend .flow-label               { background: rgba(52,211,153,0.1); color: var(--backend); border: 1px solid rgba(52,211,153,0.2); }
+
+  .flow--frontend .flow-arrow-track::before { color: var(--frontend); }
+  .flow--frontend .flow-arrowhead           { border-top-color: var(--frontend); }
+  .flow--frontend .flow-label               { background: rgba(56,189,248,0.1); color: var(--frontend); border: 1px solid rgba(56,189,248,0.2); }
+
+  /* Print friendly */
+  @media print {
+    body { background: white; color: black; }
+    body::before { display: none; }
+    .flow-arrow-track::before, .internal-arrow-line::after { animation: none; }
+  }
+
+  @media (max-width: 600px) {
+    .layer-row { flex-direction: column; }
+    .node { min-width: unset; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-eyebrow">Crestron AV-over-IP · System Architecture</div>
+    <div class="header-title">NVX Preview Dashboard</div>
+    <div class="header-sub">How it works · What each part does · How to use it</div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--nvx)"></div>NVX HARDWARE LAYER</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--config)"></div>CONFIGURATION LAYER</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--backend)"></div>PYTHON BACKEND LAYER</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--frontend)"></div>BROWSER UI LAYER</div>
+    <div class="legend-item">
+      <svg width="18" height="8"><line x1="0" y1="4" x2="14" y2="4" stroke="#64748b" stroke-width="1.5" stroke-dasharray="3,2"/><polygon points="14,1 18,4 14,7" fill="#64748b"/></svg>
+      DATA FLOW
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- LAYER 1 — NVX DEVICES                          -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="layer layer--nvx">
+    <div class="layer-label">
+      <span class="dot"></span>
+      Layer 1 — NVX Hardware Devices
+    </div>
+    <div class="layer-body">
+      <div class="layer-row">
+        <div class="node">
+          <span class="node-icon">📺</span>
+          <div class="node-title">DM-NVX Encoder</div>
+          <div class="node-sub">
+            Captures HDMI/SDI input<br>
+            Encodes to AV-over-IP<br>
+            IP: 10.1.20.14
+          </div>
+          <div class="node-tag">TRANSMITTER (TX)</div>
+        </div>
+        <div class="node">
+          <span class="node-icon">🖥️</span>
+          <div class="node-title">DM-NVX Decoder</div>
+          <div class="node-sub">
+            Receives AV stream<br>
+            Outputs to display<br>
+            IP: 10.1.20.15
+          </div>
+          <div class="node-tag">RECEIVER (RX)</div>
+        </div>
+        <div class="node">
+          <span class="node-icon">🔒</span>
+          <div class="node-title">Built-in Web Server</div>
+          <div class="node-sub">
+            Runs on every NVX<br>
+            Serves preview JPEGs<br>
+            HTTPS · Basic Auth
+          </div>
+          <div class="node-tag">PORT 443</div>
+        </div>
+        <div class="node">
+          <span class="node-icon">🖼️</span>
+          <div class="node-title">Preview JPEG</div>
+          <div class="node-sub">
+            Auto-generated frames<br>
+            135px / 270px / 540px<br>
+            /preview/preview_540px.jpeg
+          </div>
+          <div class="node-tag">REFRESHED BY NVX</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Flow: NVX → Backend -->
+  <div class="flow-connector flow--nvx">
+    <div class="flow-line">
+      <div class="flow-arrow-track"></div>
+      <div class="flow-label">HTTPS GET /preview/preview_540px.jpeg · Basic Auth · SSL disabled (self-signed cert)</div>
+      <div class="flow-arrow-track"></div>
+      <div class="flow-arrowhead" style="border-top-color: var(--nvx)"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- LAYER 2 — CONFIGURATION FILES                   -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="layer layer--config">
+    <div class="layer-label">
+      <span class="dot"></span>
+      Layer 2 — Configuration Files (edit these to control the app)
+    </div>
+    <div class="layer-body">
+      <div class="layer-row">
+        <div class="node">
+          <span class="node-icon">📋</span>
+          <div class="node-title">devices.json</div>
+          <div class="node-sub">
+            List of all NVX devices<br>
+            IP · name · location<br>
+            username · password<br>
+            preview_path · use_https
+          </div>
+          <span class="badge" style="background:rgba(192,132,252,0.15);color:var(--config)">✏️ EDIT TO ADD DEVICES</span>
+        </div>
+        <div class="node">
+          <span class="node-icon">⚙️</span>
+          <div class="node-title">settings.json</div>
+          <div class="node-sub">
+            refresh_interval: 10s<br>
+            fetch_timeout: 8s<br>
+            max_concurrent: 8<br>
+            port: 8000
+          </div>
+          <span class="badge" style="background:rgba(192,132,252,0.15);color:var(--config)">✏️ EDIT TO TUNE PERFORMANCE</span>
+        </div>
+        <div class="node">
+          <span class="node-icon">🌐</span>
+          <div class="node-title">static/index.html</div>
+          <div class="node-sub">
+            The dashboard UI<br>
+            Single HTML file<br>
+            No framework needed<br>
+            Auto-served by backend
+          </div>
+          <span class="badge" style="background:rgba(192,132,252,0.15);color:var(--config)">🔒 DO NOT EDIT</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Flow: Config → Backend -->
+  <div class="flow-connector flow--config">
+    <div class="flow-line">
+      <div class="flow-arrow-track"></div>
+      <div class="flow-label">Loaded on startup · hot-reload via /api/devices/reload</div>
+      <div class="flow-arrow-track"></div>
+      <div class="flow-arrowhead" style="border-top-color: var(--config)"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- LAYER 3 — PYTHON BACKEND                        -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="layer layer--backend">
+    <div class="layer-label">
+      <span class="dot"></span>
+      Layer 3 — Python Backend (app.py · FastAPI · uvicorn)
+    </div>
+    <div class="layer-body">
+
+      <!-- Row 1: three main components -->
+      <div class="layer-row">
+        <div class="node">
+          <span class="node-icon">🔄</span>
+          <div class="node-title">Background Worker</div>
+          <div class="node-sub">
+            Runs every 10 seconds<br>
+            Fetches JPEG from all NVX<br>
+            Up to 8 devices at once<br>
+            asyncio + aiohttp
+          </div>
+          <span class="badge" style="background:rgba(52,211,153,0.15);color:var(--backend)">ASYNC LOOP</span>
+        </div>
+        <div class="node">
+          <span class="node-icon">💾</span>
+          <div class="node-title">Memory Cache</div>
+          <div class="node-sub">
+            Stores latest JPEG per device<br>
+            Tracks online/offline status<br>
+            Response time in ms<br>
+            No database · pure RAM
+          </div>
+          <span class="badge" style="background:rgba(52,211,153,0.15);color:var(--backend)">IN-MEMORY DICT</span>
+        </div>
+        <div class="node">
+          <span class="node-icon">🚀</span>
+          <div class="node-title">API Server</div>
+          <div class="node-sub">
+            GET /api/snapshot/{id}<br>
+            GET /api/status<br>
+            GET /api/devices<br>
+            GET /api/health
+          </div>
+          <span class="badge" style="background:rgba(52,211,153,0.15);color:var(--backend)">FASTAPI + UVICORN</span>
+        </div>
+      </div>
+
+      <!-- Internal flows -->
+      <div style="padding: 0 8px;">
+        <div style="display:flex; align-items:flex-start; gap:0;">
+
+          <!-- Worker → Cache -->
+          <div class="internal-col" style="flex:1;">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--backend);letter-spacing:1px;margin-bottom:4px;text-align:center;">stores JPEG bytes</div>
+            <div style="display:flex;align-items:center;width:100%;justify-content:flex-end;padding-right:12px;">
+              <div class="internal-arrow-line" style="color:var(--backend);max-width:120px;"></div>
+              <div class="internal-arrowhead" style="border-left-color:var(--backend);"></div>
+            </div>
+          </div>
+
+          <!-- Cache → API -->
+          <div class="internal-col" style="flex:1;">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--backend);letter-spacing:1px;margin-bottom:4px;text-align:center;">serves cached frame</div>
+            <div style="display:flex;align-items:center;width:100%;justify-content:flex-end;padding-right:12px;">
+              <div class="internal-arrow-line" style="color:var(--backend);max-width:120px;"></div>
+              <div class="internal-arrowhead" style="border-left-color:var(--backend);"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Flow: Backend → Browser -->
+  <div class="flow-connector flow--backend">
+    <div class="flow-line">
+      <div class="flow-arrow-track"></div>
+      <div class="flow-label">HTTP response · JPEG bytes · instant from cache · no waiting for NVX</div>
+      <div class="flow-arrow-track"></div>
+      <div class="flow-arrowhead" style="border-top-color: var(--backend)"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- LAYER 4 — BROWSER UI                            -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="layer layer--frontend">
+    <div class="layer-label">
+      <span class="dot"></span>
+      Layer 4 — Browser Dashboard (http://localhost:8000)
+    </div>
+    <div class="layer-body">
+      <div class="layer-row">
+        <div class="node">
+          <span class="node-icon">🔲</span>
+          <div class="node-title">Device Grid</div>
+          <div class="node-sub">
+            One card per NVX device<br>
+            Live preview image<br>
+            Online / Offline badge<br>
+            Refresh countdown bar
+          </div>
+          <span class="badge" style="background:rgba(56,189,248,0.15);color:var(--frontend)">AUTO-REFRESH 10s</span>
+        </div>
+        <div class="node">
+          <span class="node-icon">🔍</span>
+          <div class="node-title">Filter &amp; Search</div>
+          <div class="node-sub">
+            Filter by location tab<br>
+            Search by name or IP<br>
+            2–8 column grid selector<br>
+            Grid / List view toggle
+          </div>
+          <span class="badge" style="background:rgba(56,189,248,0.15);color:var(--frontend)">CLIENT-SIDE</span>
+        </div>
+        <div class="node">
+          <span class="node-icon">🔁</span>
+          <div class="node-title">Status Polling</div>
+          <div class="node-sub">
+            GET /api/status every 3s<br>
+            Updates badges instantly<br>
+            Shows last seen time<br>
+            Capture latency in ms
+          </div>
+          <span class="badge" style="background:rgba(56,189,248,0.15);color:var(--frontend)">POLL EVERY 3s</span>
+        </div>
+        <div class="node">
+          <span class="node-icon">🔎</span>
+          <div class="node-title">Lightbox</div>
+          <div class="node-sub">
+            Click any card to expand<br>
+            Full-size preview<br>
+            Device info overlay<br>
+            Keyboard &amp; click to close
+          </div>
+          <span class="badge" style="background:rgba(56,189,248,0.15);color:var(--frontend)">ON CLICK</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- STATUS FEEDBACK LOOP (dashed)                   -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div style="display:flex;justify-content:center;margin:8px 0 4px;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;max-width:500px;width:100%;">
+      <svg width="100%" height="20" style="overflow:visible;">
+        <line x1="50%" y1="10" x2="50%" y2="10" stroke="none"/>
+        <path d="M 20 10 L 80% 10" stroke="#334155" stroke-width="1.5" stroke-dasharray="5,4" fill="none" marker-end="url(#dashed-arrow)"/>
+        <defs>
+          <marker id="dashed-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L6,3 z" fill="#334155"/>
+          </marker>
+        </defs>
+      </svg>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:#334155;letter-spacing:2px;text-align:center;">
+        ↑ BROWSER POLLS /api/status EVERY 3s (feedback loop) ↑
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- HOW TO USE                                      -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="how-section">
+    <div class="section-title">— How to use this system —</div>
+    <div class="steps-grid">
+
+      <div class="step-card" style="border-top-color:var(--config);">
+        <div class="step-num">01</div>
+        <span class="step-icon">📋</span>
+        <div class="step-title" style="color:var(--config)">Add Your Devices</div>
+        <div class="step-desc">Edit devices.json with your NVX IP addresses, names, and locations. One JSON block per device.</div>
+        <code class="step-code">"ip": "10.1.20.14"<br>"name": "Boardroom"<br>"location": "Floor 1"</code>
+      </div>
+
+      <div class="step-card" style="border-top-color:var(--config);">
+        <div class="step-num">02</div>
+        <span class="step-icon">⚙️</span>
+        <div class="step-title" style="color:var(--config)">Tune Settings</div>
+        <div class="step-desc">Edit settings.json to change refresh rate, timeout, and how many devices poll at once.</div>
+        <code class="step-code">"refresh_interval": 10<br>"fetch_timeout": 8<br>"max_concurrent": 8</code>
+      </div>
+
+      <div class="step-card" style="border-top-color:var(--backend);">
+        <div class="step-num">03</div>
+        <span class="step-icon">▶️</span>
+        <div class="step-title" style="color:var(--backend)">Start the Server</div>
+        <div class="step-desc">Run the app. Browser opens automatically. Server fetches previews from all NVX devices.</div>
+        <code class="step-code">python app.py<br>→ http://localhost:8000</code>
+      </div>
+
+      <div class="step-card" style="border-top-color:var(--frontend);">
+        <div class="step-num">04</div>
+        <span class="step-icon">🖥️</span>
+        <div class="step-title" style="color:var(--frontend)">Monitor Dashboard</div>
+        <div class="step-desc">Open browser. See all NVX devices in a grid. Green = online. Red = offline. Click to expand.</div>
+        <code class="step-code">http://localhost:8000<br>Filter by location tab</code>
+      </div>
+
+      <div class="step-card" style="border-top-color:var(--nvx);">
+        <div class="step-num">05</div>
+        <span class="step-icon">🔄</span>
+        <div class="step-title" style="color:var(--nvx)">Hot Reload Devices</div>
+        <div class="step-desc">Edit devices.json and reload without restarting the server. Changes apply instantly.</div>
+        <code class="step-code">localhost:8000/api/<br>devices/reload</code>
+      </div>
+
+      <div class="step-card" style="border-top-color:var(--nvx);">
+        <div class="step-num">06</div>
+        <span class="step-icon">📦</span>
+        <div class="step-title" style="color:var(--nvx)">Share as EXE</div>
+        <div class="step-desc">Build a standalone exe. No Python needed on the target machine. Just unzip and run.</div>
+        <code class="step-code">python build_exe.py<br>→ dist/NVX_Dashboard/</code>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div style="text-align:center;margin-top:48px;padding-top:24px;border-top:1px solid var(--border);">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;">
+      NVX PREVIEW DASHBOARD · PYTHON + FASTAPI + AIOHTTP · NO FFMPEG · NO DATABASE · SINGLE HTML FILE
+    </div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#1e2d40;margin-top:6px;letter-spacing:1px;">
+      CRESTRON DM-NVX · HTTPS PREVIEW JPEG · BASIC AUTH · MEMORY CACHE · ASYNC WORKERS
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,34 @@
+[
+  {
+    "id":           "nvx-01",
+    "name":         "Boardroom",
+    "ip":           "10.1.20.14",
+    "location":     "Floor 0",
+    "username":     "admin",
+    "password":     "Admin@123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+  {
+    "id":           "nvx-02",
+    "name":         "Lobby",
+    "ip":           "10.1.20.19",
+    "location":     "Floor 1",
+    "username":     "admin",
+    "password":     "Admin@123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+  {
+    "id":           "nvx-03",
+    "name":         "Training Room",
+    "ip":           "10.1.20.16",
+    "location":     "Floor 2",
+    "username":     "admin",
+    "password":     "Admin@123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  }
+]
+
+

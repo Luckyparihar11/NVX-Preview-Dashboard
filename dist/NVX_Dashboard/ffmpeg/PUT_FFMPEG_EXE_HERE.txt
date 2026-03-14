@@ -1,0 +1,9 @@
+Place ffmpeg.exe in this folder.
+
+Option A - winget:
+  winget install --id=Gyan.FFmpeg -e
+
+Option B - manual download:
+  https://www.gyan.dev/ffmpeg/builds/
+  Download ffmpeg-release-essentials.zip
+  Extract and copy ffmpeg.exe into this folder

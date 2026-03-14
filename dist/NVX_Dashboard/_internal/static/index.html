@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NVX · Live Preview Monitor</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%233b82f6'/%3E%3Crect x='15' y='20' width='70' height='50' fill='none' stroke='%23ffffff' stroke-width='3' rx='3'/%3E%3Crect x='20' y='25' width='60' height='40' fill='%2360a5fa' opacity='0.3'/%3E%3Ccircle cx='30' cy='35' r='3' fill='%23ffffff'/%3E%3Ccircle cx='45' cy='45' r='2.5' fill='%23ffffff'/%3E%3Ccircle cx='70' cy='40' r='3' fill='%23ffffff'/%3E%3Cpath d='M 25 75 L 75 75 L 73 80 L 27 80 Z' fill='%23ffffff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════
+   DESIGN: Industrial Control Room — precision & density
+   Inspired by broadcast monitoring walls & NOC dashboards
+═══════════════════════════════════════════════════ */
+:root {
+  --bg:          #07090d;
+  --surface:     #0b0e14;
+  --panel:       #0f1318;
+  --panel2:      #131820;
+  --border:      #1c2535;
+  --border2:     #243040;
+  --accent:      #3b82f6;    /* blue — logo match */
+  --accent-dim:  rgba(59,130,246,0.12);
+  --accent-glow: rgba(59,130,246,0.25);
+  --green:       #2dd4a0;
+  --red:         #f24b6a;
+  --blue:        #4b9ef2;
+  --text:        #b8ccd8;
+  --text-bright: #ddeaf5;
+  --muted:       #3d5060;
+  --mono:        'JetBrains Mono', monospace;
+  --head:        'Rajdhani', sans-serif;
+  --r:           4px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Grain overlay ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 9998;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none; opacity: 0.6;
+}
+
+/* ══════════════════════════════════════
+   TOP BAR
+══════════════════════════════════════ */
+#topbar {
+  height: 52px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  gap: 20px;
+  position: sticky; top: 0; z-index: 200;
+  user-select: none;
+}
+
+.brand {
+  display: flex; align-items: center; gap: 10px;
+  flex-shrink: 0;
+}
+.brand-hex {
+  width: 32px; height: 32px;
+  background: var(--accent);
+  clip-path: polygon(25% 0%,75% 0%,100% 50%,75% 100%,25% 100%,0% 50%);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--head); font-size: 13px; font-weight: 700;
+  color: #000; letter-spacing: 0;
+}
+.brand-label {
+  font-family: var(--head);
+  font-size: 20px; font-weight: 700;
+  color: var(--text-bright); letter-spacing: 3px;
+}
+.brand-sub {
+  font-size: 9px; color: var(--muted);
+  letter-spacing: 2px; text-transform: uppercase;
+  line-height: 1;
+  margin-top: 2px;
+}
+
+.divider { width: 1px; height: 28px; background: var(--border); flex-shrink: 0; }
+
+/* stat chips */
+.stat-chips { display: flex; gap: 8px; align-items: center; }
+.chip {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 10px; letter-spacing: 1px;
+  background: var(--panel);
+}
+.chip .val {
+  font-family: var(--head);
+  font-size: 16px; font-weight: 700;
+  line-height: 1;
+}
+.chip.online .val  { color: var(--green); }
+.chip.offline .val { color: var(--red); }
+.chip.total .val   { color: var(--accent); }
+.chip.fps .val     { color: var(--blue); }
+.chip-lbl { color: var(--muted); text-transform: uppercase; }
+
+/* live pulse */
+.live-pill {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 10px; letter-spacing: 2px; color: var(--green);
+  font-family: var(--head); font-weight: 600;
+}
+.pulse-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 0 rgba(45,212,160,0.5);
+  animation: pulse 2s ease-out infinite;
+}
+@keyframes pulse {
+  0%  { box-shadow: 0 0 0 0 rgba(45,212,160,0.5); }
+  70% { box-shadow: 0 0 0 8px rgba(45,212,160,0); }
+  100%{ box-shadow: 0 0 0 0 rgba(45,212,160,0); }
+}
+.paused-pill { color: var(--accent); }
+.paused-pill .pulse-dot { background: var(--accent); animation: none; box-shadow: none; }
+
+/* right controls */
+.spacer { flex: 1; }
+.topbar-controls { display: flex; align-items: center; gap: 8px; }
+
+.ctrl {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 10px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--r);
+  font-size: 10px; letter-spacing: 1px; color: var(--muted);
+  cursor: pointer;
+}
+.ctrl select {
+  background: none; border: none; outline: none;
+  color: var(--accent); font-family: var(--mono); font-size: 10px;
+  cursor: pointer;
+}
+.ctrl select option { background: #0f1318; }
+.ctrl:hover { border-color: var(--border2); }
+
+.btn {
+  padding: 5px 14px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--r);
+  font-family: var(--head); font-size: 13px; font-weight: 600;
+  letter-spacing: 1px; color: var(--text);
+  cursor: pointer; transition: all 0.15s;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.primary { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.btn.active  { background: var(--accent); color: #000; border-color: var(--accent); }
+
+/* clock */
+#clock {
+  font-family: var(--head); font-size: 18px; font-weight: 600;
+  color: var(--text-bright); letter-spacing: 2px;
+  min-width: 90px; text-align: right;
+}
+
+/* ══════════════════════════════════════
+   FILTER BAR
+══════════════════════════════════════ */
+#filterbar {
+  display: flex; align-items: center;
+  padding: 0 18px;
+  height: 38px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  gap: 6px;
+  position: sticky; top: 52px; z-index: 190;
+  overflow-x: auto;
+}
+#filterbar::-webkit-scrollbar { height: 2px; }
+#filterbar::-webkit-scrollbar-thumb { background: var(--border); }
+
+.loc-btn {
+  padding: 3px 12px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  font-family: var(--head); font-size: 12px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--muted); cursor: pointer; white-space: nowrap;
+  transition: all 0.12s;
+  background: none;
+}
+.loc-btn:hover { color: var(--text); border-color: var(--border); }
+.loc-btn.active {
+  color: var(--accent); border-color: var(--accent);
+  background: var(--accent-dim);
+}
+.loc-count {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 9px; color: var(--muted);
+  background: var(--panel); border-radius: 2px;
+  padding: 1px 4px;
+}
+
+.fb-sep { width: 1px; height: 18px; background: var(--border); flex-shrink: 0; margin: 0 4px; }
+
+.search-wrap {
+  display: flex; align-items: center; gap: 6px;
+  margin-left: auto; flex-shrink: 0;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 4px 10px;
+  transition: border-color 0.15s;
+}
+.search-wrap:focus-within { border-color: var(--accent); }
+.search-wrap input {
+  background: none; border: none; outline: none;
+  color: var(--text-bright); font-family: var(--mono); font-size: 11px;
+  width: 160px;
+}
+.search-wrap input::placeholder { color: var(--muted); }
+.search-ico { color: var(--muted); font-size: 13px; }
+
+/* view toggle */
+.view-toggle { display: flex; gap: 2px; }
+.view-btn {
+  padding: 3px 8px;
+  background: var(--panel); border: 1px solid var(--border);
+  color: var(--muted); font-size: 13px; cursor: pointer;
+  transition: all 0.1s;
+}
+.view-btn:first-child { border-radius: 3px 0 0 3px; }
+.view-btn:last-child  { border-radius: 0 3px 3px 0; border-left: none; }
+.view-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
+/* ══════════════════════════════════════
+   GRID
+══════════════════════════════════════ */
+#main {
+  padding: 14px 18px;
+}
+
+#grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(var(--cols, 4), 1fr);
+  transition: grid-template-columns 0.3s;
+}
+
+/* responsive column overrides */
+@media (max-width: 1400px) { #grid { --cols: var(--cols-resp, 4); } }
+@media (max-width: 1000px) { #grid { --cols: 3 !important; } }
+@media (max-width:  680px) { #grid { --cols: 2 !important; } }
+@media (max-width:  420px) { #grid { --cols: 1 !important; } }
+
+/* list view */
+#grid.list-view {
+  grid-template-columns: 1fr;
+}
+#grid.list-view .dev-card {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  grid-template-rows: auto;
+}
+#grid.list-view .card-head,
+#grid.list-view .card-foot {
+  grid-column: 2;
+}
+#grid.list-view .card-preview {
+  grid-row: 1 / 4;
+  aspect-ratio: unset;
+  height: 100%;
+  min-height: 90px;
+}
+
+/* ══════════════════════════════════════
+   DEVICE CARD
+══════════════════════════════════════ */
+.dev-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+  animation: fadeUp 0.35s ease both;
+  position: relative;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+.dev-card:hover {
+  border-color: var(--border2);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4), 0 0 0 1px rgba(232,184,75,0.1);
+  transform: translateY(-1px);
+}
+.dev-card.offline {
+  border-color: rgba(242,75,106,0.2);
+}
+.dev-card.offline:hover {
+  border-color: rgba(242,75,106,0.5);
+  box-shadow: 0 4px 24px rgba(242,75,106,0.05);
+}
+
+/* card top strip — colored by status */
+.card-strip {
+  height: 2px;
+  background: var(--border);
+  transition: background 0.3s;
+}
+.dev-card.online  .card-strip { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.dev-card.offline .card-strip { background: var(--red); }
+.dev-card.pending .card-strip { background: var(--accent); animation: strip-blink 1s step-start infinite; }
+@keyframes strip-blink { 50% { opacity: 0.3; } }
+
+/* card header */
+.card-head {
+  display: flex; align-items: center;
+  padding: 6px 10px;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel2);
+}
+.card-num {
+  font-size: 9px; color: var(--muted);
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 2px; padding: 1px 5px;
+  flex-shrink: 0; font-weight: 500;
+}
+.card-name {
+  font-family: var(--head); font-size: 14px; font-weight: 600;
+  color: var(--text-bright);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex: 1;
+}
+.card-badge {
+  font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;
+  padding: 2px 6px; border-radius: 2px; flex-shrink: 0;
+  font-weight: 500; border: 1px solid;
+}
+.card-badge.online  { color: var(--green); border-color: rgba(45,212,160,0.3); background: rgba(45,212,160,0.08); }
+.card-badge.offline { color: var(--red);   border-color: rgba(242,75,106,0.3); background: rgba(242,75,106,0.08); }
+.card-badge.pending { color: var(--accent);border-color: rgba(232,184,75,0.3); background: rgba(232,184,75,0.08); animation: blink-badge 1s step-start infinite; }
+@keyframes blink-badge { 50% { opacity: 0.4; } }
+
+/* preview */
+.card-preview {
+  position: relative;
+  aspect-ratio: 16/9;
+  background: #040608;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.card-preview img {
+  width: 100%; height: 100%;
+  object-fit: contain;
+  display: block;
+  transition: opacity 0.4s;
+}
+
+/* shimmer on load */
+.card-shimmer {
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg,
+    transparent 0%, rgba(232,184,75,0.05) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1s ease infinite;
+  opacity: 0; pointer-events: none; transition: opacity 0.2s;
+}
+.card-shimmer.on { opacity: 1; }
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position:  200% 0; }
+}
+
+/* no-signal */
+.no-sig {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 8px; opacity: 0; pointer-events: none;
+  transition: opacity 0.3s;
+  background: repeating-linear-gradient(
+    45deg,
+    #050709 0px, #050709 4px,
+    #070a0d 4px, #070a0d 8px
+  );
+}
+.no-sig.show { opacity: 1; }
+.no-sig-icon { font-size: 26px; opacity: 0.18; }
+.no-sig-lbl  { font-family: var(--head); font-size: 11px; font-weight: 700;
+               letter-spacing: 3px; color: var(--red); opacity: 0.7; }
+.no-sig-ip   { font-size: 9px; color: var(--muted); letter-spacing: 1px; }
+
+/* hover overlay */
+.card-hover {
+  position: absolute; inset: 0;
+  opacity: 0; transition: opacity 0.2s;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.5);
+}
+.card-preview:hover .card-hover { opacity: 1; }
+.expand-ring {
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.5);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; color: #fff;
+  backdrop-filter: blur(4px);
+}
+
+/* card footer */
+.card-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 10px;
+  font-size: 9px; color: var(--muted);
+  border-top: 1px solid var(--border);
+  background: var(--panel2);
+}
+.card-loc { letter-spacing: 1px; text-transform: uppercase; }
+.card-meta { display: flex; gap: 10px; align-items: center; }
+.card-ts   { font-size: 9px; }
+.card-ms   { color: var(--blue); }
+
+/* refresh progress bar */
+.card-progress {
+  height: 2px; background: var(--border);
+  position: relative; overflow: hidden;
+}
+.card-progress-fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--green) 100%);
+  width: 0%;
+  transition: width 0.15s linear;
+  box-shadow: 0 0 4px var(--accent);
+}
+
+/* ══════════════════════════════════════
+   LIGHTBOX
+══════════════════════════════════════ */
+#lightbox {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(4,6,9,0.96);
+  backdrop-filter: blur(12px);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 14px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s;
+}
+#lightbox.open { opacity: 1; pointer-events: all; }
+
+#lb-frame {
+  position: relative;
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  overflow: hidden;
+  max-width: 92vw;
+}
+#lb-img {
+  display: block;
+  max-width: 90vw; max-height: 76vh;
+  object-fit: contain;
+}
+#lb-strip {
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--green));
+}
+
+#lb-meta {
+  display: flex; align-items: center; gap: 20px;
+  font-family: var(--head); font-size: 15px; font-weight: 600;
+  color: var(--text-bright);
+}
+#lb-meta .m  { color: var(--muted); font-size: 11px; font-family: var(--mono); font-weight: 400; }
+
+#lb-close {
+  position: absolute; top: 16px; right: 16px;
+  width: 36px; height: 36px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 50%; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; color: var(--text); transition: all 0.15s;
+}
+#lb-close:hover { border-color: var(--red); color: var(--red); }
+
+#lb-refresh {
+  padding: 6px 16px;
+  background: var(--accent-dim); border: 1px solid var(--accent);
+  border-radius: var(--r); color: var(--accent);
+  font-family: var(--head); font-size: 13px; font-weight: 600;
+  letter-spacing: 1px; cursor: pointer; transition: all 0.15s;
+}
+#lb-refresh:hover { background: var(--accent); color: #000; }
+
+/* ══════════════════════════════════════
+   TOAST
+══════════════════════════════════════ */
+#toast {
+  position: fixed; bottom: 20px; right: 20px; z-index: 3000;
+  background: var(--panel2); border: 1px solid var(--border2);
+  border-radius: var(--r);
+  padding: 9px 16px;
+  font-size: 11px; letter-spacing: 0.5px; color: var(--text);
+  opacity: 0; transform: translateY(6px);
+  transition: all 0.2s; pointer-events: none;
+  display: flex; align-items: center; gap: 8px;
+}
+#toast.show   { opacity: 1; transform: none; }
+#toast.ok     { border-color: rgba(45,212,160,0.4); }
+#toast.err    { border-color: rgba(242,75,106,0.4); }
+#toast.warn   { border-color: rgba(232,184,75,0.4); }
+.toast-dot    { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+#toast.ok  .toast-dot  { background: var(--green); }
+#toast.err .toast-dot  { background: var(--red); }
+#toast.warn .toast-dot { background: var(--accent); }
+
+/* ══════════════════════════════════════
+   EMPTY STATE
+══════════════════════════════════════ */
+#empty {
+  display: none;
+  grid-column: 1 / -1;
+  padding: 80px 20px;
+  text-align: center;
+  flex-direction: column; align-items: center; gap: 10px;
+}
+#empty .e-ico { font-size: 40px; opacity: 0.12; }
+#empty .e-txt { font-family: var(--head); font-size: 14px; color: var(--muted); letter-spacing: 2px; }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ══ TOP BAR ════════════════════════════════════════════ -->
+<div id="topbar">
+  <div class="brand">
+    <svg width="32" height="32" viewBox="0 0 100 100" style="flex-shrink:0;">
+      <defs>
+        <linearGradient id="avoipGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#1e40af;stop-opacity:1" />
+        </linearGradient>
+      </defs>
+      <!-- Outer circle -->
+      <circle cx="50" cy="50" r="48" fill="url(#avoipGradient)"/>
+      <!-- Network nodes -->
+      <circle cx="30" cy="30" r="5" fill="#ffffff"/>
+      <circle cx="70" cy="30" r="5" fill="#ffffff"/>
+      <circle cx="50" cy="60" r="5" fill="#ffffff"/>
+      <!-- Network lines connecting nodes -->
+      <line x1="30" y1="30" x2="50" y2="60" stroke="#ffffff" stroke-width="1.5" opacity="0.8"/>
+      <line x1="70" y1="30" x2="50" y2="60" stroke="#ffffff" stroke-width="1.5" opacity="0.8"/>
+      <line x1="30" y1="30" x2="70" y2="30" stroke="#ffffff" stroke-width="1.5" opacity="0.8"/>
+      <!-- Center hub -->
+      <circle cx="50" cy="50" r="3" fill="#60a5fa"/>
+      <!-- Wave indicators (audio/video) -->
+      <path d="M 50 42 Q 52 40 54 42" stroke="#ffffff" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.9"/>
+      <path d="M 50 45 Q 53 42 56 45" stroke="#ffffff" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.7"/>
+      <path d="M 50 48 Q 54 44 58 48" stroke="#ffffff" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.5"/>
+    </svg>
+    <div>
+      <div class="brand-label">AVOIP MONITOR</div>
+      <div class="brand-sub">Live Stream Control</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="stat-chips">
+    <div class="chip online"><span class="val" id="st-online">—</span><span class="chip-lbl">online</span></div>
+    <div class="chip offline"><span class="val" id="st-offline">—</span><span class="chip-lbl">offline</span></div>
+    <div class="chip total"><span class="val" id="st-total">—</span><span class="chip-lbl">total</span></div>
+    <div class="chip fps"><span class="val" id="st-interval">—</span><span class="chip-lbl">sec/refresh</span></div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div id="live-pill" class="live-pill">
+    <div class="pulse-dot"></div>LIVE
+  </div>
+
+  <div class="spacer"></div>
+
+  <div class="topbar-controls">
+    <div class="ctrl">
+      <span style="color:var(--muted);font-size:9px">COLS</span>
+      <select id="cols-sel" onchange="setCols(this.value)">
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4" selected>4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="8">8</option>
+      </select>
+    </div>
+    <div class="ctrl">
+      <span style="color:var(--muted);font-size:9px">POLL</span>
+      <select id="interval-sel" onchange="setInterval_(this.value)">
+        <option value="5">5s</option>
+        <option value="10" selected>10s</option>
+        <option value="15">15s</option>
+        <option value="30">30s</option>
+        <option value="60">60s</option>
+      </select>
+    </div>
+    <button class="btn" id="pause-btn" onclick="togglePause()">⏸ PAUSE</button>
+    <button class="btn primary" onclick="forceRefresh()">↺ REFRESH ALL</button>
+    <div id="clock">00:00:00</div>
+  </div>
+</div>
+
+<!-- ══ FILTER BAR ════════════════════════════════════════ -->
+<div id="filterbar">
+  <button class="loc-btn active" data-loc="__all__" onclick="setLoc('__all__', this)">
+    ALL <span class="loc-count" id="lc-all">—</span>
+  </button>
+  <div class="fb-sep"></div>
+  <!-- location buttons injected here -->
+  <div id="loc-buttons"></div>
+  <div class="fb-sep"></div>
+  <div class="search-wrap">
+    <span class="search-ico">⌕</span>
+    <input type="text" id="search" placeholder="Search name / IP…" oninput="applyFilters()">
+  </div>
+  <div class="view-toggle" style="margin-left:8px">
+    <button class="view-btn active" id="vb-grid" onclick="setView('grid',this)" title="Grid">⊞</button>
+    <button class="view-btn" id="vb-list" onclick="setView('list',this)" title="List">≡</button>
+  </div>
+</div>
+
+<!-- ══ MAIN GRID ═════════════════════════════════════════ -->
+<div id="main">
+  <div id="grid"></div>
+  <div id="empty">
+    <div class="e-ico">◫</div>
+    <div class="e-txt">NO DEVICES MATCH FILTER</div>
+  </div>
+</div>
+
+<!-- ══ LIGHTBOX ══════════════════════════════════════════ -->
+<div id="lightbox" onclick="closeLB(event)">
+  <button id="lb-close" onclick="closeLightbox()">✕</button>
+  <div id="lb-frame">
+    <div id="lb-strip"></div>
+    <img id="lb-img" src="" alt="">
+  </div>
+  <div id="lb-meta">
+    <span id="lb-name">—</span>
+    <span class="m" id="lb-ip">—</span>
+    <span class="m" id="lb-loc">—</span>
+    <button id="lb-refresh" onclick="refreshLB()">↺ REFRESH</button>
+  </div>
+</div>
+
+<!-- ══ TOAST ════════════════════════════════════════════ -->
+<div id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
+
+<script>
+'use strict';
+// ─── State ──────────────────────────────────────────────────────
+let devices        = [];
+let paused         = false;
+let pollInterval   = 10;         // seconds — matches server SNAPSHOT_INTERVAL
+let statusTimer    = null;
+let progressTimers = {};
+let currentLoc     = '__all__';
+let currentSearch  = '';
+let lbDeviceId     = null;
+let cardCount      = 0;
+
+// ─── Bootstrap ──────────────────────────────────────────────────
+async function init() {
+  try {
+    const [devRes, hlthRes] = await Promise.all([
+      fetch('/api/devices'),
+      fetch('/api/health'),
+    ]);
+    devices = await devRes.json();
+    const health = await hlthRes.json();
+    pollInterval = health.refresh_interval ?? 10;
+
+    document.getElementById('st-total').textContent    = devices.length;
+    document.getElementById('st-interval').textContent = pollInterval;
+    document.getElementById('interval-sel').value      = String(pollInterval);
+
+    buildLocButtons();
+    buildGrid();
+    startStatusPolling();
+    setInterval(clockTick, 1000);
+    clockTick();
+    toast(`Connected — ${devices.length} devices`, 'ok');
+  } catch(e) {
+    toast('Cannot reach backend — is app.py running?', 'err');
+    // Demo offline cards
+    devices = Array.from({length: 6}, (_,i) => ({
+      id: `demo-${i+1}`,
+      name: `Demo Device ${i+1}`,
+      ip: `192.168.1.${101+i}`,
+      location: i < 3 ? 'Floor 1' : 'Floor 2',
+    }));
+    buildLocButtons();
+    buildGrid();
+    setInterval(clockTick, 1000);
+    clockTick();
+  }
+}
+
+// ─── Location Buttons ───────────────────────────────────────────
+function buildLocButtons() {
+  const locs = [...new Set(devices.map(d => d.location).filter(Boolean))];
+  const container = document.getElementById('loc-buttons');
+  container.innerHTML = '';
+  locs.forEach(loc => {
+    const count = devices.filter(d => d.location === loc).length;
+    const btn = document.createElement('button');
+    btn.className = 'loc-btn';
+    btn.dataset.loc = loc;
+    btn.innerHTML = `${loc} <span class="loc-count">${count}</span>`;
+    btn.onclick = () => setLoc(loc, btn);
+    container.appendChild(btn);
+  });
+  document.getElementById('lc-all').textContent = devices.length;
+}
+
+// ─── Grid Build ─────────────────────────────────────────────────
+function buildGrid() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  cardCount = 0;
+  devices.forEach((d, idx) => {
+    const el = makeCard(d, idx + 1);
+    grid.appendChild(el);
+    cardCount++;
+  });
+  applyFilters();
+  // kick off image loading for all
+  devices.forEach(d => loadSnap(d.id));
+}
+
+function makeCard(d, num) {
+  const card = document.createElement('div');
+  card.className = 'dev-card pending';
+  card.id = `card-${d.id}`;
+  card.style.animationDelay = `${Math.min(num * 30, 600)}ms`;
+  card.innerHTML = `
+    <div class="card-strip"></div>
+    <div class="card-head">
+      <span class="card-num">${String(num).padStart(2,'0')}</span>
+      <span class="card-name" title="${d.name}">${d.name}</span>
+      <span class="card-badge pending" id="badge-${d.id}">INIT</span>
+    </div>
+    <div class="card-preview" onclick="openLB('${d.id}')">
+      <img id="img-${d.id}" src="" alt="${d.name}"
+           onload="onLoad('${d.id}')" onerror="onErr('${d.id}')">
+      <div class="card-shimmer" id="shim-${d.id}"></div>
+      <div class="no-sig" id="nosig-${d.id}">
+        <div class="no-sig-icon">⬛</div>
+        <div class="no-sig-lbl">NO SIGNAL</div>
+        <div class="no-sig-ip">${d.ip}:${d.rtsp_port ?? 554}</div>
+      </div>
+      <div class="card-hover"><div class="expand-ring">⤢</div></div>
+    </div>
+    <div class="card-progress"><div class="card-progress-fill" id="prog-${d.id}"></div></div>
+    <div class="card-foot">
+      <span class="card-loc">${d.location || '—'}</span>
+      <div class="card-meta">
+        <span class="card-ms" id="ms-${d.id}">—</span>
+        <span class="card-ts" id="ts-${d.id}">—</span>
+      </div>
+    </div>`;
+  return card;
+}
+
+// ─── Snapshot Loading ────────────────────────────────────────────
+function loadSnap(deviceId) {
+  const img  = document.getElementById(`img-${deviceId}`);
+  const shim = document.getElementById(`shim-${deviceId}`);
+  if (!img) return;
+  shim.classList.add('on');
+  img.src = `/api/snapshot/${deviceId}?t=${Date.now()}`;
+}
+
+function onLoad(deviceId) {
+  const shim  = document.getElementById(`shim-${deviceId}`);
+  const nosig = document.getElementById(`nosig-${deviceId}`);
+  const badge = document.getElementById(`badge-${deviceId}`);
+  const card  = document.getElementById(`card-${deviceId}`);
+  const ts    = document.getElementById(`ts-${deviceId}`);
+  shim.classList.remove('on');
+  nosig.classList.remove('show');
+  card.className  = 'dev-card online';
+  badge.className = 'card-badge online';
+  badge.textContent = 'LIVE';
+  ts.textContent  = new Date().toLocaleTimeString();
+  updateStats();
+}
+
+function onErr(deviceId) {
+  const shim  = document.getElementById(`shim-${deviceId}`);
+  const nosig = document.getElementById(`nosig-${deviceId}`);
+  const badge = document.getElementById(`badge-${deviceId}`);
+  const card  = document.getElementById(`card-${deviceId}`);
+  shim.classList.remove('on');
+  nosig.classList.add('show');
+  card.className  = 'dev-card offline';
+  badge.className = 'card-badge offline';
+  badge.textContent = 'OFFLINE';
+  updateStats();
+}
+
+// ─── Status Polling ──────────────────────────────────────────────
+// Polls /api/status to know when backend has fresh frames,
+// then loads them — this is smarter than time-based refresh.
+async function pollStatus() {
+  try {
+    const res  = await fetch('/api/status');
+    const data = await res.json();
+    devices.forEach(d => {
+      const s = data[d.id];
+      if (!s) return;
+      // Update capture time badge
+      const msEl = document.getElementById(`ms-${d.id}`);
+      if (msEl && s.capture_ms) msEl.textContent = `${s.capture_ms}ms`;
+    });
+    updateStats();
+  } catch(e) { /* silent */ }
+}
+
+function startStatusPolling() {
+  clearInterval(statusTimer);
+  // Poll status every 3s (lightweight JSON, not images)
+  statusTimer = setInterval(pollStatus, 3000);
+
+  // Refresh images on the server's schedule
+  devices.forEach(d => scheduleDeviceRefresh(d.id));
+}
+
+function scheduleDeviceRefresh(deviceId) {
+  clearTimeout(progressTimers[`t_${deviceId}`]);
+  clearInterval(progressTimers[`i_${deviceId}`]);
+  if (paused) return;
+
+  const interval = pollInterval * 1000;
+  // Animate progress bar
+  startProgressBar(deviceId, interval);
+  progressTimers[`t_${deviceId}`] = setTimeout(() => {
+    if (!paused) {
+      loadSnap(deviceId);
+      scheduleDeviceRefresh(deviceId); // reschedule
+    }
+  }, interval);
+}
+
+function startProgressBar(deviceId, durationMs) {
+  const bar   = document.getElementById(`prog-${deviceId}`);
+  if (!bar) return;
+  bar.style.width = '0%';
+  clearInterval(progressTimers[`p_${deviceId}`]);
+  const t0 = Date.now();
+  progressTimers[`p_${deviceId}`] = setInterval(() => {
+    const pct = Math.min(((Date.now() - t0) / durationMs) * 100, 100);
+    bar.style.width = pct + '%';
+    if (pct >= 100) clearInterval(progressTimers[`p_${deviceId}`]);
+  }, 100);
+}
+
+// ─── Stats ───────────────────────────────────────────────────────
+function updateStats() {
+  const online  = document.querySelectorAll('.dev-card.online').length;
+  const offline = document.querySelectorAll('.dev-card.offline').length;
+  document.getElementById('st-online').textContent  = online;
+  document.getElementById('st-offline').textContent = offline;
+}
+
+// ─── Controls ────────────────────────────────────────────────────
+function togglePause() {
+  paused = !paused;
+  const btn = document.getElementById('pause-btn');
+  const pill = document.getElementById('live-pill');
+  if (paused) {
+    btn.textContent = '▶ RESUME';
+    btn.classList.add('active');
+    pill.className = 'paused-pill';
+    pill.innerHTML = '<div class="pulse-dot"></div>PAUSED';
+    devices.forEach(d => {
+      clearTimeout(progressTimers[`t_${d.id}`]);
+      clearInterval(progressTimers[`i_${d.id}`]);
+      clearInterval(progressTimers[`p_${d.id}`]);
+    });
+    toast('Auto-refresh paused', 'warn');
+  } else {
+    btn.textContent = '⏸ PAUSE';
+    btn.classList.remove('active');
+    pill.className = 'live-pill';
+    pill.innerHTML = '<div class="pulse-dot"></div>LIVE';
+    devices.forEach(d => scheduleDeviceRefresh(d.id));
+    toast('Auto-refresh resumed', 'ok');
+  }
+}
+
+function forceRefresh() {
+  devices.forEach(d => {
+    if (document.getElementById(`card-${d.id}`)?.style.display !== 'none') {
+      loadSnap(d.id);
+    }
+  });
+  toast(`Refreshing all visible devices…`, 'ok');
+}
+
+function setCols(v) {
+  document.getElementById('grid').style.setProperty('--cols', v);
+}
+
+function setInterval_(v) {
+  pollInterval = parseInt(v);
+  document.getElementById('st-interval').textContent = pollInterval;
+  if (!paused) devices.forEach(d => scheduleDeviceRefresh(d.id));
+  toast(`Refresh interval → ${v}s`, 'warn');
+}
+
+function setView(mode, btn) {
+  const grid = document.getElementById('grid');
+  grid.classList.toggle('list-view', mode === 'list');
+  document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// ─── Filtering ────────────────────────────────────────────────────
+function setLoc(loc, btn) {
+  currentLoc = loc;
+  document.querySelectorAll('.loc-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilters();
+}
+
+function applyFilters() {
+  currentSearch = document.getElementById('search').value.toLowerCase();
+  let visible = 0;
+  devices.forEach(d => {
+    const card = document.getElementById(`card-${d.id}`);
+    if (!card) return;
+    const locOk    = currentLoc === '__all__' || d.location === currentLoc;
+    const searchOk = !currentSearch ||
+                     d.name.toLowerCase().includes(currentSearch) ||
+                     d.ip.toLowerCase().includes(currentSearch);
+    const show = locOk && searchOk;
+    card.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  const empty = document.getElementById('empty');
+  empty.style.display = visible === 0 ? 'flex' : 'none';
+}
+
+// ─── Lightbox ────────────────────────────────────────────────────
+function openLB(deviceId) {
+  const d = devices.find(x => x.id === deviceId);
+  if (!d) return;
+  lbDeviceId = deviceId;
+  const url = `/api/snapshot/${deviceId}?t=${Date.now()}`;
+  document.getElementById('lb-img').src = url;
+  document.getElementById('lb-name').textContent = d.name;
+  document.getElementById('lb-ip').textContent   = `${d.ip}:${d.rtsp_port ?? 554}`;
+  document.getElementById('lb-loc').textContent  = d.location || '';
+  document.getElementById('lightbox').classList.add('open');
+}
+
+function refreshLB() {
+  if (!lbDeviceId) return;
+  const url = `/api/snapshot/${lbDeviceId}?t=${Date.now()}`;
+  document.getElementById('lb-img').src = url;
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  lbDeviceId = null;
+}
+
+function closeLB(e) {
+  if (e.target === document.getElementById('lightbox')) closeLightbox();
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+// ─── Clock ───────────────────────────────────────────────────────
+function clockTick() {
+  document.getElementById('clock').textContent =
+    new Date().toLocaleTimeString('en-GB', {hour12: false});
+}
+
+// ─── Toast ───────────────────────────────────────────────────────
+let toastTimer;
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  const dot = el.querySelector('.toast-dot');
+  document.getElementById('toast-msg').textContent = msg;
+  el.className = `show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.className = '', 2800);
+}
+
+// ─── Go ──────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
