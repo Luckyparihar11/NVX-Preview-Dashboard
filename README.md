@@ -205,27 +205,126 @@ http://localhost:8000/api/devices/reload
 
 ## Troubleshooting
 
-**Browser shows nothing**
+### Browser Issues
 
-Make sure you are opening `http://localhost:8000` and not `http://0.0.0.0:8000`
+**Browser shows nothing / page not found**
+- Make sure you are opening `http://localhost:8000` and not `http://0.0.0.0:8000`
+- Confirm the server is running — you should see `Uvicorn running on http://0.0.0.0:8000` in CMD
+- Check `static/index.html` exists in your project folder
 
-**Device shows OFFLINE**
+**ERR_CONNECTION_REFUSED**
+- The server is not running — go to CMD and run `python app.py`
+- Another app may be using port 8000 — change `port` in `settings.json` to `8001`
 
-- Confirm you can ping the device: `ping 10.1.20.14`
-- Open `https://10.1.20.14/preview/preview_540px.jpeg` in your browser — if it asks for login, your credentials are correct
-- Check `use_https` is set to `true` in devices.json if the device uses HTTPS
+---
 
-**Port already in use**
+### Device Shows OFFLINE
 
-Change the `port` value in `settings.json` from `8000` to `8001` or any free port
+**Step 1 — Check network connectivity**
+```cmd
+ping 10.1.20.14
+```
+If ping fails, your PC cannot reach the NVX device. Check network/WiFi.
 
-**JSON syntax error on startup**
+**Step 2 — Test the preview URL in browser**
+```
+https://10.1.20.14/preview/preview_540px.jpeg
+```
+- If it shows the image → network is fine, check credentials
+- If it asks for login → enter username and password manually to confirm they work
+- If it shows nothing → NVX preview output may be disabled in device settings
 
-Validate your devices.json at: `https://jsonlint.com`
+**Step 3 — Check use_https setting**
+
+If your NVX redirects HTTP to HTTPS, set `use_https` to `true` in `devices.json`:
+```json
+"use_https": true
+```
+
+**Step 4 — Try hostname instead of IP**
+```cmd
+ping DM-NVX-384-C4426888C775
+```
+If ping resolves, use the hostname in `devices.json` instead of the IP address.
+
+---
+
+### Authentication Errors (HTTP 401)
+
+**Device shows AUTH FAILED on dashboard**
+
+The username or password in `devices.json` is wrong.
+
+> The app will automatically stop polling after 3 failed attempts to prevent account lockout on the NVX device.
+
+**Fix:**
+
+1. Correct the credentials in `devices.json`
+2. Reload devices without restarting the server:
+```
+http://localhost:8000/api/devices/reload
+```
+
+Or unblock a specific device:
+```
+http://localhost:8000/api/devices/nvx-01/unblock
+```
+
+**Check current auth status for all devices:**
+```
+http://localhost:8000/api/status
+```
+Look for `"auth_blocked": true` — those devices have been stopped due to wrong credentials.
+
+---
+
+### Installation Issues
 
 **pip is not recognized**
 
-Python was not added to PATH during installation. Reinstall Python and tick **"Add Python to PATH"**
+Python was not added to PATH. Reinstall Python and tick **"Add Python to PATH"** during setup.
+```cmd
+python -m pip install fastapi "uvicorn[standard]" aiohttp
+```
+
+**ModuleNotFoundError: No module named fastapi**
+
+Packages not installed. Run:
+```cmd
+pip install fastapi "uvicorn[standard]" aiohttp
+```
+
+**SyntaxError on startup**
+
+You may have an old version of `app.py`. Download the latest from GitHub and replace it.
+
+**Port already in use**
+
+Change the `port` value in `settings.json`:
+```json
+"port": 8001
+```
+Then open `http://localhost:8001`
+
+**JSON syntax error in devices.json**
+
+Validate your JSON at: `https://jsonlint.com`  
+Common mistakes: trailing comma after last item, missing quotes around values.
+
+---
+
+### Performance Issues
+
+**Preview images are slow to load**
+
+- Increase `max_concurrent` in `settings.json` to poll more devices at once
+- Reduce `preview_size` to `270px` for faster fetches over slow WiFi
+- Check if your WiFi AP has client isolation enabled — disable it
+
+**Dashboard is laggy with many devices**
+
+- Increase `refresh_interval` to `15` or `30` seconds
+- Reduce `max_concurrent` to `4` if the network is congested
 
 ---
 
@@ -259,9 +358,11 @@ Copy your `devices.json` and `settings.json` next to the exe before sharing.
 | GET / | Dashboard UI |
 | GET /api/devices | List of all configured devices |
 | GET /api/snapshot/{id} | Latest JPEG preview for a device |
-| GET /api/status | Online/offline status of all devices |
+| GET /api/status | Online/offline status of all devices — includes `auth_blocked` and `auth_fails` |
 | GET /api/health | Server health and configuration info |
+| GET /api/settings | Current settings loaded from settings.json |
 | POST /api/devices/reload | Hot-reload devices.json without restart |
+| POST /api/devices/{id}/unblock | Unblock a device that was blocked due to wrong credentials |
 
 ---
 
@@ -307,4 +408,4 @@ If you find a bug, have a feature request, or want to contribute — open an iss
 ---
 
 > Designed and developed by Lucky Parihar  
-> If this saved you time on a project — give it a star on GitHub!"# NVX-Preview-Dashboard" 
+> If this saved you time on a project — give it a star on GitHub!

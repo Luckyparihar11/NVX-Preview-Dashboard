@@ -155,14 +155,19 @@ DEVICES: List[dict] = load_devices()
 # ══════════════════════════════════════════════════════════════════
 #  IN-MEMORY CACHE
 # ══════════════════════════════════════════════════════════════════
+# Max 401 failures before we stop polling the device
+AUTH_FAIL_LIMIT = 3
+
 @dataclass
 class DeviceState:
-    jpeg:       Optional[bytes] = None
-    online:     bool            = False
-    last_seen:  Optional[float] = None
-    fetch_ms:   Optional[int]   = None
-    error:      Optional[str]   = None
-    http_code:  Optional[int]   = None
+    jpeg:         Optional[bytes] = None
+    online:       bool            = False
+    last_seen:    Optional[float] = None
+    fetch_ms:     Optional[int]   = None
+    error:        Optional[str]   = None
+    http_code:    Optional[int]   = None
+    auth_fails:   int             = 0     # count of consecutive 401 responses
+    auth_blocked: bool            = False # True = stop polling, credentials are wrong
 
 cache: Dict[str, DeviceState] = {}
 semaphore: Optional[asyncio.Semaphore] = None
@@ -183,6 +188,12 @@ def build_preview_url(device: dict) -> str:
     return "%s://%s%s" % (scheme, device["ip"], device.get("preview_path", "/preview/preview_540px.jpeg"))
 
 async def fetch_preview(session: aiohttp.ClientSession, device: dict) -> Optional[bytes]:
+    # If credentials were already rejected - stop polling until user fixes devices.json
+    s = cache.get(device["id"])
+    if s and s.auth_blocked:
+        log.debug("[%s] Skipping poll - auth blocked (wrong credentials)", device["id"])
+        return None
+
     url  = build_preview_url(device)
     u    = device.get("username")
     p    = device.get("password")
@@ -208,11 +219,33 @@ async def fetch_preview(session: aiohttp.ClientSession, device: dict) -> Optiona
                 return None
 
             if resp.status == 200:
+                # Successful fetch - reset any previous auth failure count
+                cache[device["id"]].auth_fails   = 0
+                cache[device["id"]].auth_blocked = False
                 data = await resp.read()
                 if len(data) > 0:
                     return data
                 log.warning("[%s] Empty response from %s", device["id"], url)
                 return None
+
+            elif resp.status == 401:
+                s = cache[device["id"]]
+                s.auth_fails += 1
+                s.http_code   = 401
+                if s.auth_fails >= AUTH_FAIL_LIMIT:
+                    s.auth_blocked = True
+                    s.error = "AUTH FAILED - wrong username or password. Edit devices.json and call /api/devices/reload"
+                    log.error(
+                        "[%s] Blocked after %d x 401 - wrong credentials. "
+                        "Fix devices.json and reload via /api/devices/reload",
+                        device["id"], AUTH_FAIL_LIMIT
+                    )
+                else:
+                    s.error = "HTTP 401 - auth attempt %d of %d" % (s.auth_fails, AUTH_FAIL_LIMIT)
+                    log.warning("[%s] HTTP 401 (%d of %d) - check credentials in devices.json",
+                                device["id"], s.auth_fails, AUTH_FAIL_LIMIT)
+                return None
+
             else:
                 log.warning("[%s] HTTP %d from %s", device["id"], resp.status, url)
                 cache[device["id"]].error = "HTTP %d" % resp.status
@@ -381,15 +414,29 @@ async def api_snapshot(device_id: str):
 async def api_status():
     return {
         dev_id: {
-            "online":    s.online,
-            "last_seen": s.last_seen,
-            "fetch_ms":  s.fetch_ms,
-            "has_frame": s.jpeg is not None,
-            "http_code": s.http_code,
-            "error":     s.error,
+            "online":       s.online,
+            "last_seen":    s.last_seen,
+            "fetch_ms":     s.fetch_ms,
+            "has_frame":    s.jpeg is not None,
+            "http_code":    s.http_code,
+            "error":        s.error,
+            "auth_blocked": s.auth_blocked,
+            "auth_fails":   s.auth_fails,
         }
         for dev_id, s in cache.items()
     }
+
+@app.post("/api/devices/{device_id}/unblock")
+async def api_unblock_device(device_id: str):
+    """Manually unblock a device that was blocked due to auth failure."""
+    s = cache.get(device_id)
+    if s is None:
+        raise HTTPException(404, "Device not found: %s" % device_id)
+    s.auth_blocked = False
+    s.auth_fails   = 0
+    s.error        = None
+    log.info("[%s] Manually unblocked - will retry polling", device_id)
+    return {"success": True, "device_id": device_id}
 
 @app.get("/api/health")
 async def api_health():
@@ -427,7 +474,7 @@ if __name__ == "__main__":
 
     print("")
     print("=" * 58)
-    print("  NVX Preview Dashboard  -  HTTP Edition  v3.0")
+    print("  NVX Preview Dashboard  -  HTTP Edition  v4.0")
     print("  http://localhost:%d" % port)
     print("=" * 58)
     print("  Mode     : HTTP preview images (no FFmpeg needed)")

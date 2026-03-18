@@ -2,30 +2,70 @@
   {
     "id":           "nvx-01",
     "name":         "Boardroom",
-    "ip":           "10.1.20.14",
+    "ip":           "CAFE-16F-363-85-TV-R",
     "location":     "Floor 0",
     "username":     "admin",
-    "password":     "Admin@123",
+    "password":     "Allwave@123",
     "preview_path": "/preview/preview_540px.jpeg",
     "use_https":    true
   },
   {
     "id":           "nvx-02",
     "name":         "Lobby",
-    "ip":           "10.1.20.19",
+    "ip":           "WELLNESS-16F-SUITE-363-55-TV",
     "location":     "Floor 1",
     "username":     "admin",
-    "password":     "Admin@123",
+    "password":     "Allwave@123",
     "preview_path": "/preview/preview_540px.jpeg",
     "use_https":    true
   },
   {
     "id":           "nvx-03",
     "name":         "Training Room",
-    "ip":           "10.1.20.16",
+    "ip":           "16F-CAFE-363-85-TV-L",
     "location":     "Floor 2",
     "username":     "admin",
-    "password":     "Admin@123",
+    "password":     "Allwave@123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+  {
+    "id":           "nvx-04",
+    "name":         "Training Room",
+    "ip":           "CAFE-TAMA-16F-363-POLY-CONTENT",
+    "location":     "Floor 2",
+    "username":     "admin",
+    "password":     "Allwave@123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+  {
+    "id":           "nvx-05",
+    "name":         "Training Room",
+    "ip":           "CAFE-TAMA-16F-363-POLY-VC",
+    "location":     "Floor 2",
+    "username":     "admin",
+    "password":     "Allwave@123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+  {
+    "id":           "nvx-06",
+    "name":         "Training Room",
+    "ip":           "RECEPTION-16F-363-DISPLAY",
+    "location":     "Floor 2",
+    "username":     "admin",
+    "password":     "Allwave@123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+  {
+    "id":           "nvx-07",
+    "name":         "Training Room",
+    "ip":           "L16-CAFE-360-TO-ATLONA-LACTERN",
+    "location":     "Floor 2",
+    "username":     "admin",
+    "password":     "Allwave@123",
     "preview_path": "/preview/preview_540px.jpeg",
     "use_https":    true
   }
