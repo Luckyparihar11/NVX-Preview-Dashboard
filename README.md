@@ -1,19 +1,66 @@
-# NVX Preview Dashboard
+# NVX Preview Dashboard — v3.0
 
-A lightweight monitoring dashboard for Crestron DM-NVX AV-over-IP devices.  
-See live previews of all your NVX devices on a single screen. Know which devices are online or offline at a glance.
+> Built by **Lucky Parihar** · [GitHub](https://github.com/Luckyparihar11) · [LinkedIn](https://www.linkedin.com/in/lucky-parihar-b90425208/)
+
+A lightweight monitoring dashboard for Crestron DM-NVX AV-over-IP devices.
+Monitor live previews, device status, firmware versions, network info, and multicast addresses — all from one screen.
 
 ---
 
-## What It Does
+## What's New in v3.0
 
-- Live JPEG preview of every NVX device on one dashboard
-- Online / Offline status updated every 10 seconds
-- Filter devices by location — Floor, Zone, Room, Area
-- Search by device name or IP address
-- Click any device to expand full-size preview
-- Works over WiFi — no wired connection required
-- Configurable refresh interval — 5s, 10s, 15s, 30s
+### Firmware & Device Info Panel
+- Fetches firmware version, model, serial number, and MAC address from every NVX automatically
+- Displayed on each device card footer and in the expanded lightbox view
+- Full firmware table view accessible via the **⚙ FIRMWARE** button in the top bar
+
+### Network Information
+- Fetches hostname, active IP address, subnet mask, default gateway, and DHCP status from each device
+- Visible in the firmware table — useful for verifying network config without opening each device's web UI
+
+### Multicast Address Monitoring
+- Fetches multicast address, source type (TX encoder / RX decoder), and stream status from each device
+- Auto-detects TX (StreamTransmit) first, falls back to RX (StreamReceive) if TX has no multicast configured
+
+### CSV Export
+- One-click export of the entire device table to a timestamped CSV file
+- Includes all columns: firmware, model, serial, MAC, hostname, IP, subnet, gateway, DHCP, multicast
+
+### Auth Protection
+- Stops polling after 3 consecutive 401 failures to prevent NVX account lockout
+- Dashboard shows AUTH ERR badge — fix credentials in devices.json and reload without restart
+
+### UI Refresh
+- Full blue colour theme — replaced amber/yellow accent throughout
+- Cleaner card footer with model name and firmware version on every card
+- Lightbox now shows hostname and multicast address alongside firmware info
+
+---
+
+## Full Feature List
+
+| Feature | Details |
+|---|---|
+| Live preview | HTTPS JPEG fetched from NVX built-in preview endpoint |
+| Auto-refresh | Every 10s — configurable to 5s, 15s, 30s |
+| Online / Offline | Instant status per device, updates every 3s |
+| Location filter | Group devices by Floor, Zone, Room, Area |
+| Search | By device name or IP address |
+| Lightbox | Click any card to expand full-size preview |
+| WiFi support | No wired connection required |
+| Firmware version | Fetched from `/Device/DeviceInfo/` |
+| Model + Serial + MAC | Fetched from `/Device/DeviceInfo/` |
+| Hostname | Fetched from `/Device/Ethernet/` |
+| Active IP + Subnet + Gateway | Fetched from `/Device/Ethernet/` |
+| DHCP status | Fetched from `/Device/Ethernet/` |
+| Multicast address | Fetched from `/Device/StreamTransmit/` or `/Device/StreamReceive/` |
+| Multicast source | TX (encoder) or RX (decoder) auto-detected |
+| Multicast status | Stream Started / Stream Stopped |
+| CSV export | Download full table as timestamped CSV |
+| Auth block | Stops after 3 x 401 — prevents NVX account lockout |
+| Hot reload | Edit devices.json and reload without restart |
+| Hostname support | Use device hostname instead of IP in devices.json |
+| Standalone exe | Runs on any Windows PC without Python installed |
 
 ---
 
@@ -27,54 +74,27 @@ See live previews of all your NVX devices on a single screen. Know which devices
 
 ## Step 1 — Install Python
 
-Download and install Python from the official website:
-
+Download from the official website:
 ```
 https://www.python.org/downloads/
 ```
 
-> **Important:** During installation, tick **"Add Python to PATH"** at the bottom before clicking Install Now.
+> **Important:** During installation, tick **"Add Python to PATH"** before clicking Install Now.
 
-Verify installation:
-
+Verify:
 ```cmd
 python --version
 ```
-
-Expected output: `Python 3.x.x`
 
 ---
 
 ## Step 2 — Install Required Packages
 
-Open **Command Prompt** and run these commands one by one:
-
-**Upgrade pip first:**
-```cmd
-python -m pip install --upgrade pip
-```
-
-**Install FastAPI:**
-```cmd
-pip install fastapi
-```
-
-**Install Uvicorn:**
-```cmd
-pip install "uvicorn[standard]"
-```
-
-**Install Aiohttp:**
-```cmd
-pip install aiohttp
-```
-
-**Or install all at once:**
 ```cmd
 pip install fastapi "uvicorn[standard]" aiohttp
 ```
 
-**Verify all packages installed:**
+Verify:
 ```cmd
 pip show fastapi uvicorn aiohttp
 ```
@@ -83,17 +103,14 @@ pip show fastapi uvicorn aiohttp
 
 ## Step 3 — Download the Project
 
-Download or clone this repository into a folder on your PC.
-
 ```cmd
-git clone https://github.com/yourusername/nvx-dashboard.git
+git clone https://github.com/Luckyparihar11/nvx-dashboard.git
 cd nvx-dashboard
 ```
 
 Or download the ZIP from GitHub and extract it.
 
-Your folder should look like this:
-
+Your folder should contain:
 ```
 nvx-dashboard/
   app.py
@@ -107,7 +124,7 @@ nvx-dashboard/
 
 ## Step 4 — Add Your NVX Devices
 
-Open `devices.json` in Notepad or any text editor and add your NVX device details:
+Open `devices.json` in Notepad and add your devices:
 
 ```json
 [
@@ -117,7 +134,7 @@ Open `devices.json` in Notepad or any text editor and add your NVX device detail
     "ip":           "10.1.20.14",
     "location":     "Floor 1",
     "username":     "admin",
-    "password":     "your_password",
+    "password":     "Admin@123",
     "preview_path": "/preview/preview_540px.jpeg",
     "use_https":    true
   },
@@ -127,31 +144,41 @@ Open `devices.json` in Notepad or any text editor and add your NVX device detail
     "ip":           "10.1.20.15",
     "location":     "Floor 1",
     "username":     "admin",
-    "password":     "your_password",
+    "password":     "Admin@123",
     "preview_path": "/preview/preview_540px.jpeg",
     "use_https":    true
   }
 ]
 ```
 
+**You can also use a hostname instead of IP:**
+```json
+"ip": "DM-NVX-384-C4426888C775"
+```
+
+Test hostname resolution first:
+```cmd
+ping DM-NVX-384-C4426888C775
+```
+
 **Field reference:**
 
 | Field | Description |
 |---|---|
-| id | Unique ID for each device (nvx-01, nvx-02 ...) |
-| name | Display name shown on the dashboard card |
-| ip | IP address of the NVX device |
-| location | Groups devices into filter tabs (Floor 1, Floor 2 etc.) |
+| id | Unique ID — nvx-01, nvx-02 etc. |
+| name | Display name on dashboard card |
+| ip | IP address or hostname |
+| location | Groups devices into filter tabs |
 | username | NVX web login username |
 | password | NVX web login password |
-| preview_path | Leave as `/preview/preview_540px.jpeg` for all NVX devices |
-| use_https | Set to `true` if your NVX uses HTTPS (recommended) |
+| preview_path | Leave as `/preview/preview_540px.jpeg` |
+| use_https | Set `true` — NVX uses HTTPS by default |
 
 ---
 
 ## Step 5 — Configure Settings (Optional)
 
-Open `settings.json` to adjust performance settings:
+Open `settings.json`:
 
 ```json
 {
@@ -166,10 +193,10 @@ Open `settings.json` to adjust performance settings:
 
 | Setting | Description | Default |
 |---|---|---|
-| refresh_interval | Seconds between preview refreshes | 10 |
+| refresh_interval | Seconds between preview fetches | 10 |
 | fetch_timeout | Seconds before marking device offline | 8 |
-| max_concurrent | How many devices to poll at the same time | 8 |
-| preview_size | Preview image size: 135px / 270px / 540px | 540px |
+| max_concurrent | Parallel device polls at once | 8 |
+| preview_size | 135px / 270px / 540px | 540px |
 | port | Web server port | 8000 |
 | open_browser | Auto-open browser on start | true |
 
@@ -177,26 +204,62 @@ Open `settings.json` to adjust performance settings:
 
 ## Step 6 — Run the Dashboard
 
-Open **Command Prompt** in your project folder and run:
-
 ```cmd
 python app.py
 ```
 
-The browser will open automatically at:
-
+Browser opens automatically at:
 ```
 http://localhost:8000
 ```
 
-To stop the server press **Ctrl + C** in the Command Prompt window.
+Press **Ctrl + C** to stop.
+
+---
+
+## Using the Firmware Table
+
+Click the **⚙ FIRMWARE** button in the top bar to switch to the device information table.
+
+The table shows for every device:
+
+| Column | Source API |
+|---|---|
+| Status | Live poll |
+| Firmware Version | `/Device/DeviceInfo/` |
+| Model | `/Device/DeviceInfo/` |
+| Serial Number | `/Device/DeviceInfo/` |
+| MAC Address | `/Device/DeviceInfo/` |
+| Hostname | `/Device/Ethernet/` |
+| Active IP | `/Device/Ethernet/` |
+| Subnet | `/Device/Ethernet/` |
+| Gateway | `/Device/Ethernet/` |
+| DHCP | `/Device/Ethernet/` |
+| Multicast Address | `/Device/StreamTransmit/` or `/Device/StreamReceive/` |
+| MC Source | TX or RX auto-detected |
+| MC Status | Stream Started / Stopped |
+
+Firmware info is fetched automatically on startup and refreshed every **5 minutes**.
+It uses the same credentials as the preview — no extra config required.
+
+---
+
+## Exporting Data as CSV
+
+Click **⬇ EXPORT CSV** in the firmware table header.
+
+A file named `nvx_devices_YYYYMMDD_HHMMSS.csv` downloads instantly with all 17 columns.
+
+Or call the endpoint directly:
+```
+http://localhost:8000/api/export/csv
+```
 
 ---
 
 ## Reload Devices Without Restarting
 
-If you edit `devices.json` while the server is running, reload without restarting:
-
+Edit `devices.json` while the server is running, then:
 ```
 http://localhost:8000/api/devices/reload
 ```
@@ -208,173 +271,201 @@ http://localhost:8000/api/devices/reload
 ### Browser Issues
 
 **Browser shows nothing / page not found**
-- Make sure you are opening `http://localhost:8000` and not `http://0.0.0.0:8000`
-- Confirm the server is running — you should see `Uvicorn running on http://0.0.0.0:8000` in CMD
-- Check `static/index.html` exists in your project folder
+- Open `http://localhost:8000` — not `http://0.0.0.0:8000`
+- Confirm server is running — CMD should show `Uvicorn running on http://0.0.0.0:8000`
 
 **ERR_CONNECTION_REFUSED**
-- The server is not running — go to CMD and run `python app.py`
-- Another app may be using port 8000 — change `port` in `settings.json` to `8001`
+- Server is not running — run `python app.py`
+- Port conflict — change `port` in settings.json to `8001`
 
 ---
 
 ### Device Shows OFFLINE
 
-**Step 1 — Check network connectivity**
+**Step 1 — Check network**
 ```cmd
 ping 10.1.20.14
 ```
-If ping fails, your PC cannot reach the NVX device. Check network/WiFi.
 
-**Step 2 — Test the preview URL in browser**
+**Step 2 — Test preview URL in browser**
 ```
 https://10.1.20.14/preview/preview_540px.jpeg
 ```
-- If it shows the image → network is fine, check credentials
-- If it asks for login → enter username and password manually to confirm they work
-- If it shows nothing → NVX preview output may be disabled in device settings
 
-**Step 3 — Check use_https setting**
-
-If your NVX redirects HTTP to HTTPS, set `use_https` to `true` in `devices.json`:
+**Step 3 — Check use_https**
 ```json
 "use_https": true
 ```
 
-**Step 4 — Try hostname instead of IP**
+**Step 4 — Try hostname**
 ```cmd
 ping DM-NVX-384-C4426888C775
 ```
-If ping resolves, use the hostname in `devices.json` instead of the IP address.
 
 ---
 
 ### Authentication Errors (HTTP 401)
 
-**Device shows AUTH FAILED on dashboard**
-
-The username or password in `devices.json` is wrong.
-
-> The app will automatically stop polling after 3 failed attempts to prevent account lockout on the NVX device.
+The app stops polling after **3 failed attempts** to prevent NVX account lockout.
 
 **Fix:**
-
-1. Correct the credentials in `devices.json`
-2. Reload devices without restarting the server:
+1. Correct credentials in `devices.json`
+2. Reload:
 ```
 http://localhost:8000/api/devices/reload
 ```
 
-Or unblock a specific device:
+Unblock one device:
 ```
 http://localhost:8000/api/devices/nvx-01/unblock
 ```
 
-**Check current auth status for all devices:**
+Check auth status:
 ```
 http://localhost:8000/api/status
 ```
-Look for `"auth_blocked": true` — those devices have been stopped due to wrong credentials.
+Look for `"auth_blocked": true`
+
+---
+
+### Firmware Table Shows "fetching..."
+
+This is normal on first startup — firmware is fetched once per device and takes a few seconds.
+If it stays on "fetching..." after 30 seconds:
+
+- Device may be offline or unreachable
+- `/Device/DeviceInfo/` endpoint may not be supported on older NVX firmware
+- Check `firmware_error` in `/api/status` for the specific error
+
+Force re-fetch all devices:
+```
+POST http://localhost:8000/api/firmware/refresh-all
+```
+
+Force re-fetch one device:
+```
+POST http://localhost:8000/api/firmware/nvx-01/refresh
+```
 
 ---
 
 ### Installation Issues
 
 **pip is not recognized**
-
-Python was not added to PATH. Reinstall Python and tick **"Add Python to PATH"** during setup.
 ```cmd
 python -m pip install fastapi "uvicorn[standard]" aiohttp
 ```
 
-**ModuleNotFoundError: No module named fastapi**
-
-Packages not installed. Run:
-```cmd
-pip install fastapi "uvicorn[standard]" aiohttp
-```
-
-**SyntaxError on startup**
-
-You may have an old version of `app.py`. Download the latest from GitHub and replace it.
-
 **Port already in use**
-
-Change the `port` value in `settings.json`:
+Change `port` in settings.json:
 ```json
 "port": 8001
 ```
-Then open `http://localhost:8001`
 
 **JSON syntax error in devices.json**
-
-Validate your JSON at: `https://jsonlint.com`  
-Common mistakes: trailing comma after last item, missing quotes around values.
+Validate at: `https://jsonlint.com`
 
 ---
 
 ### Performance Issues
 
-**Preview images are slow to load**
+**Slow previews over WiFi**
+- Increase `fetch_timeout` to `15` in settings.json
+- Reduce `max_concurrent` to `4`
+- Reduce `preview_size` to `270px`
 
-- Increase `max_concurrent` in `settings.json` to poll more devices at once
-- Reduce `preview_size` to `270px` for faster fetches over slow WiFi
-- Check if your WiFi AP has client isolation enabled — disable it
-
-**Dashboard is laggy with many devices**
-
-- Increase `refresh_interval` to `15` or `30` seconds
-- Reduce `max_concurrent` to `4` if the network is congested
-
----
-
-## Building a Standalone Windows EXE
-
-To package the dashboard as a `.exe` that runs on any Windows machine without Python:
-
-**Install PyInstaller:**
-```cmd
-pip install pyinstaller
-```
-
-**Build the exe:**
-```cmd
-python build_exe.py
-```
-
-Output will be in:
-```
-dist\NVX_Dashboard\NVX_Dashboard.exe
-```
-
-Copy your `devices.json` and `settings.json` next to the exe before sharing.
+**Dashboard laggy with many devices**
+- Increase `refresh_interval` to `15` or `30`
 
 ---
 
 ## API Endpoints
 
-| Endpoint | Description |
-|---|---|
-| GET / | Dashboard UI |
-| GET /api/devices | List of all configured devices |
-| GET /api/snapshot/{id} | Latest JPEG preview for a device |
-| GET /api/status | Online/offline status of all devices — includes `auth_blocked` and `auth_fails` |
-| GET /api/health | Server health and configuration info |
-| GET /api/settings | Current settings loaded from settings.json |
-| POST /api/devices/reload | Hot-reload devices.json without restart |
-| POST /api/devices/{id}/unblock | Unblock a device that was blocked due to wrong credentials |
+| Endpoint | Method | Description |
+|---|---|---|
+| `/` | GET | Dashboard UI |
+| `/api/devices` | GET | List of all configured devices |
+| `/api/devices/reload` | POST | Hot-reload devices.json |
+| `/api/devices/{id}/unblock` | POST | Unblock auth-blocked device |
+| `/api/snapshot/{id}` | GET | Latest JPEG preview for a device |
+| `/api/status` | GET | Full status for all devices including firmware + network + multicast |
+| `/api/health` | GET | Server health and config info |
+| `/api/settings` | GET | Current settings.json values |
+| `/api/firmware` | GET | Firmware + network + multicast info for all devices |
+| `/api/firmware/{id}` | GET | Full info for one device |
+| `/api/firmware/{id}/refresh` | POST | Force re-fetch info for one device |
+| `/api/firmware/refresh-all` | POST | Force re-fetch info for all devices |
+| `/api/export/csv` | GET | Download full device table as CSV |
 
 ---
 
-## Tech Stack
+## Building a Standalone Windows EXE
 
-| Component | Technology |
-|---|---|
-| Backend | Python, FastAPI, Uvicorn |
-| HTTP Client | aiohttp (async) |
-| Frontend | Single HTML file, vanilla JavaScript |
-| Protocol | HTTPS preview JPEG from NVX built-in endpoint |
-| Packaging | PyInstaller (Windows exe) |
+```cmd
+pip install pyinstaller
+python build_exe.py
+```
+
+Output:
+```
+dist\NVX_Dashboard\NVX_Dashboard.exe
+```
+
+Copy your config files alongside:
+```cmd
+xcopy /E /I static dist\NVX_Dashboard\static
+copy devices.json dist\NVX_Dashboard\devices.json
+copy settings.json dist\NVX_Dashboard\settings.json
+```
+
+---
+
+## Architecture
+
+```
+NVX Devices (HTTPS)
+      ↓
+  app.py (FastAPI + aiohttp)
+      ├── /preview/preview_540px.jpeg  → JPEG cache → /api/snapshot
+      ├── /Device/DeviceInfo/          → firmware cache
+      ├── /Device/Ethernet/            → network cache
+      └── /Device/StreamTransmit|Receive/ → multicast cache
+                    ↓
+            /api/status  (polled every 3s by browser)
+                    ↓
+            index.html  (dashboard UI)
+```
+
+---
+
+## Changelog
+
+### v3.0 (2026)
+- Added firmware version, model, serial, MAC fetch from `/Device/DeviceInfo/`
+- Added hostname, IP, subnet, gateway, DHCP fetch from `/Device/Ethernet/`
+- Added multicast address fetch from `/Device/StreamTransmit/` and `/Device/StreamReceive/`
+- Added firmware table view with 17 columns
+- Added CSV export — `/api/export/csv`
+- Added force refresh endpoints — `/api/firmware/refresh-all`
+- Added auth block protection — stops after 3 x 401
+- Added hostname support in devices.json
+- Blue colour theme replacing amber/yellow
+- Firmware version + model shown on every device card
+- Lightbox now shows hostname and multicast address
+
+### v2.0
+- Switched from RTSP/FFmpeg to HTTP preview JPEG
+- No FFmpeg required
+- Added devices.json and settings.json config files
+- Added hot-reload via `/api/devices/reload`
+- Added Windows exe build via PyInstaller
+
+### v1.0
+- Initial release
+- RTSP preview via FFmpeg
+- Multi-device grid dashboard
+- Location filter tabs
+- Search by name or IP
 
 ---
 
@@ -385,8 +476,8 @@ Built and maintained by **Lucky Parihar**
 - GitHub: [github.com/Luckyparihar11](https://github.com/Luckyparihar11)
 - LinkedIn: [linkedin.com/in/lucky-parihar-b90425208](https://www.linkedin.com/in/lucky-parihar-b90425208/)
 
-This project was born out of real frustration on large Crestron NVX deployments.
-Built from scratch to solve a problem that every AV Engineer faces on site.
+Built from real project frustration on large Crestron NVX deployments.
+If this saved you time — give it a star on GitHub.
 
 ---
 
@@ -394,18 +485,6 @@ Built from scratch to solve a problem that every AV Engineer faces on site.
 
 MIT License — Copyright (c) 2026 Lucky Parihar
 
-Free to use, modify, and distribute with attribution.  
-See the [LICENSE](LICENSE) file for full terms.
+See [LICENSE](LICENSE) for full terms.
 
----
-
-## Feedback and Contributions
-
-This is an initial release built from real project experience on large Crestron NVX deployments.
-
-If you find a bug, have a feature request, or want to contribute — open an issue or pull request on GitHub.
-
----
-
-> Designed and developed by Lucky Parihar  
-> If this saved you time on a project — give it a star on GitHub!
+> This project is not affiliated with or endorsed by Crestron Electronics, Inc.

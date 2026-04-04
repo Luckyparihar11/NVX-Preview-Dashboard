@@ -68,6 +68,16 @@
     "password":     "Allwave@123",
     "preview_path": "/preview/preview_540px.jpeg",
     "use_https":    true
+  },
+  {
+    "id":           "nvx-08",
+    "name":         "BoardRoom",
+    "ip":           "L16-CAFE-360-TO-ATLONA",
+    "location":     "Floor 10",
+    "username":     "admin",
+    "password":     "Allwave@123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
   }
 ]
 

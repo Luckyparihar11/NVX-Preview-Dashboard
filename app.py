@@ -160,14 +160,35 @@ AUTH_FAIL_LIMIT = 3
 
 @dataclass
 class DeviceState:
-    jpeg:         Optional[bytes] = None
-    online:       bool            = False
-    last_seen:    Optional[float] = None
-    fetch_ms:     Optional[int]   = None
-    error:        Optional[str]   = None
-    http_code:    Optional[int]   = None
-    auth_fails:   int             = 0     # count of consecutive 401 responses
-    auth_blocked: bool            = False # True = stop polling, credentials are wrong
+    jpeg:              Optional[bytes] = None
+    online:            bool            = False
+    last_seen:         Optional[float] = None
+    fetch_ms:          Optional[int]   = None
+    error:             Optional[str]   = None
+    http_code:         Optional[int]   = None
+    auth_fails:        int             = 0
+    auth_blocked:      bool            = False
+    # ── Firmware / DeviceInfo (/Device/DeviceInfo/) ──────────
+    firmware_version:  Optional[str]   = None   # e.g. "1.4789.00085.001"
+    firmware_model:    Optional[str]   = None   # e.g. "DM-NVX-384"
+    firmware_serial:   Optional[str]   = None
+    firmware_mac:      Optional[str]   = None
+    firmware_fetched:  Optional[float] = None
+    firmware_error:    Optional[str]   = None
+    # ── Network / Ethernet (/Device/Ethernet/) ───────────────
+    net_hostname:      Optional[str]   = None   # device hostname
+    net_ip:            Optional[str]   = None   # active IP address
+    net_subnet:        Optional[str]   = None
+    net_gateway:       Optional[str]   = None
+    net_dhcp:          Optional[bool]  = None
+    net_fetched:       Optional[float] = None
+    net_error:         Optional[str]   = None
+    # ── Multicast (/Device/StreamTransmit/ or StreamReceive/) ─
+    multicast_address: Optional[str]   = None   # e.g. "239.255.1.1"
+    multicast_source:  Optional[str]   = None   # "TX" or "RX"
+    multicast_status:  Optional[str]   = None   # e.g. "Stream Started"
+    multicast_fetched: Optional[float] = None
+    multicast_error:   Optional[str]   = None
 
 cache: Dict[str, DeviceState] = {}
 semaphore: Optional[asyncio.Semaphore] = None
@@ -178,6 +199,140 @@ def rebuild_cache():
 
 rebuild_cache()
 
+
+# ══════════════════════════════════════════════════════════════════
+#  EXTENDED DEVICE INFO FETCH
+#  Fetches 3 endpoints in parallel:
+#    /Device/DeviceInfo/      → firmware, model, serial, MAC
+#    /Device/Ethernet/        → hostname, IP, subnet, gateway, DHCP
+#    /Device/StreamTransmit/  → multicast address (TX)
+#    /Device/StreamReceive/   → multicast address (RX fallback)
+#  Rate-limited to DEVICE_INFO_INTERVAL seconds between refreshes.
+# ══════════════════════════════════════════════════════════════════
+DEVICE_INFO_INTERVAL = 300  # 5 minutes
+
+def _base_url(device: dict) -> str:
+    scheme = "https" if device.get("use_https", False) else "http"
+    return "%s://%s" % (scheme, device["ip"])
+
+async def _get_json(session, url, auth, timeout):
+    """Helper — GET JSON, returns parsed dict or None on any error."""
+    try:
+        async with session.get(
+            url, auth=auth,
+            timeout=aiohttp.ClientTimeout(total=timeout),
+            ssl=False,
+        ) as resp:
+            if resp.status == 200:
+                return await resp.json(content_type=None)
+    except Exception:
+        pass
+    return None
+
+async def fetch_device_extended(session: aiohttp.ClientSession, device: dict):
+    """Fetch firmware, network, and multicast info for one device."""
+    s = cache.get(device["id"])
+    if s is None:
+        return
+
+    # Rate-limit: skip if all three were fetched recently
+    now = time.time()
+    fw_due  = not s.firmware_fetched  or (now - s.firmware_fetched)  >= DEVICE_INFO_INTERVAL
+    net_due = not s.net_fetched       or (now - s.net_fetched)       >= DEVICE_INFO_INTERVAL
+    mc_due  = not s.multicast_fetched or (now - s.multicast_fetched) >= DEVICE_INFO_INTERVAL
+    if not (fw_due or net_due or mc_due):
+        return
+
+    base = _base_url(device)
+    u    = device.get("username")
+    p    = device.get("password")
+    auth = aiohttp.BasicAuth(login=u, password=p, encoding="latin1") if u and p else None
+    tout = SETTINGS["fetch_timeout"]
+
+    # ── Fetch all 3 endpoints concurrently ───────────────────
+    dev_data, eth_data, tx_data, rx_data = await asyncio.gather(
+        _get_json(session, base + "/Device/DeviceInfo/",     auth, tout) if fw_due  else asyncio.sleep(0),
+        _get_json(session, base + "/Device/Ethernet/",       auth, tout) if net_due else asyncio.sleep(0),
+        _get_json(session, base + "/Device/StreamTransmit/", auth, tout) if mc_due  else asyncio.sleep(0),
+        _get_json(session, base + "/Device/StreamReceive/",  auth, tout) if mc_due  else asyncio.sleep(0),
+    )
+
+    # ── DeviceInfo ───────────────────────────────────────────
+    if fw_due:
+        if dev_data:
+            try:
+                info = dev_data.get("Device", {}).get("DeviceInfo", {})
+                s.firmware_version = info.get("DeviceVersion")
+                s.firmware_model   = info.get("Model")
+                s.firmware_serial  = info.get("SerialNumber")
+                s.firmware_mac     = info.get("MacAddress")
+                s.firmware_fetched = now
+                s.firmware_error   = None
+                log.info("[%s] FW: %s | Model: %s | S/N: %s",
+                         device["id"], s.firmware_version or "?",
+                         s.firmware_model or "?", s.firmware_serial or "?")
+            except Exception as exc:
+                s.firmware_error = "parse error: %s" % exc
+        else:
+            s.firmware_error = "fetch failed"
+
+    # ── Ethernet / Network ───────────────────────────────────
+    if net_due:
+        if eth_data:
+            try:
+                eth = eth_data.get("Device", {}).get("Ethernet", {})
+                s.net_hostname = eth.get("HostName")
+                # Pull IP from first adapter
+                adapters = eth.get("Adapters", [])
+                if adapters:
+                    ipv4 = adapters[0].get("IPv4", {})
+                    addrs = ipv4.get("Addresses", [])
+                    if addrs:
+                        s.net_ip     = addrs[0].get("Address")
+                        s.net_subnet = addrs[0].get("SubnetMask")
+                    s.net_gateway = ipv4.get("DefaultGateway")
+                    s.net_dhcp    = ipv4.get("IsDhcpEnabled")
+                s.net_fetched = now
+                s.net_error   = None
+                log.info("[%s] Network: hostname=%s ip=%s dhcp=%s",
+                         device["id"], s.net_hostname or "?",
+                         s.net_ip or "?", s.net_dhcp)
+            except Exception as exc:
+                s.net_error = "parse error: %s" % exc
+        else:
+            s.net_error = "fetch failed"
+
+    # ── Multicast (TX first, fall back to RX) ───────────────
+    if mc_due:
+        mc_addr   = None
+        mc_src    = None
+        mc_status = None
+        try:
+            if tx_data:
+                streams = tx_data.get("Device", {}).get("StreamTransmit", {}).get("Streams", [])
+                if streams and isinstance(streams, list) and streams[0].get("MulticastAddress"):
+                    mc_addr   = streams[0]["MulticastAddress"]
+                    mc_status = streams[0].get("Status")
+                    mc_src    = "TX"
+            if not mc_addr and rx_data:
+                streams = rx_data.get("Device", {}).get("StreamReceive", {}).get("Streams", [])
+                if streams and isinstance(streams, list) and streams[0].get("MulticastAddress"):
+                    mc_addr   = streams[0]["MulticastAddress"]
+                    mc_status = streams[0].get("Status")
+                    mc_src    = "RX"
+        except Exception as exc:
+            s.multicast_error = "parse error: %s" % exc
+        s.multicast_address = mc_addr
+        s.multicast_source  = mc_src
+        s.multicast_status  = mc_status
+        s.multicast_fetched = now
+        s.multicast_error   = None if mc_addr else "not available"
+        if mc_addr:
+            log.info("[%s] Multicast: %s (%s) status=%s",
+                     device["id"], mc_addr, mc_src or "?", mc_status or "?")
+
+# Keep old name as alias for backward compat
+fetch_firmware_info = fetch_device_extended
 
 # ══════════════════════════════════════════════════════════════════
 #  HTTP PREVIEW FETCH
@@ -289,6 +444,9 @@ async def refresh_device(session: aiohttp.ClientSession, device: dict):
         else:
             s.online   = False
             s.fetch_ms = ms
+
+        # Fetch firmware info in background (non-blocking, rate-limited internally)
+        asyncio.create_task(fetch_firmware_info(session, device))
 
 async def background_worker():
     global semaphore
@@ -414,17 +572,178 @@ async def api_snapshot(device_id: str):
 async def api_status():
     return {
         dev_id: {
-            "online":       s.online,
-            "last_seen":    s.last_seen,
-            "fetch_ms":     s.fetch_ms,
-            "has_frame":    s.jpeg is not None,
-            "http_code":    s.http_code,
-            "error":        s.error,
-            "auth_blocked": s.auth_blocked,
-            "auth_fails":   s.auth_fails,
+            "online":             s.online,
+            "last_seen":          s.last_seen,
+            "fetch_ms":           s.fetch_ms,
+            "has_frame":          s.jpeg is not None,
+            "http_code":          s.http_code,
+            "error":              s.error,
+            "auth_blocked":       s.auth_blocked,
+            "auth_fails":         s.auth_fails,
+            # firmware
+            "firmware_version":   s.firmware_version,
+            "firmware_model":     s.firmware_model,
+            "firmware_serial":    s.firmware_serial,
+            "firmware_mac":       s.firmware_mac,
+            "firmware_fetched":   s.firmware_fetched,
+            "firmware_error":     s.firmware_error,
+            # network
+            "net_hostname":       s.net_hostname,
+            "net_ip":             s.net_ip,
+            "net_subnet":         s.net_subnet,
+            "net_gateway":        s.net_gateway,
+            "net_dhcp":           s.net_dhcp,
+            "net_error":          s.net_error,
+            # multicast
+            "multicast_address":  s.multicast_address,
+            "multicast_source":   s.multicast_source,
+            "multicast_status":   s.multicast_status,
+            "multicast_error":    s.multicast_error,
         }
         for dev_id, s in cache.items()
     }
+
+@app.get("/api/firmware")
+async def api_firmware_all():
+    """Returns full device info (firmware, network, multicast) for all devices."""
+    result = {}
+    for d in DEVICES:
+        dev_id = d["id"]
+        s = cache.get(dev_id)
+        if not s:
+            continue
+        result[dev_id] = {
+            "name":               d.get("name"),
+            "ip":                 d.get("ip"),
+            "location":           d.get("location"),
+            "online":             s.online,
+            # firmware
+            "firmware_version":   s.firmware_version,
+            "firmware_model":     s.firmware_model,
+            "firmware_serial":    s.firmware_serial,
+            "firmware_mac":       s.firmware_mac,
+            "firmware_error":     s.firmware_error,
+            # network
+            "net_hostname":       s.net_hostname,
+            "net_ip":             s.net_ip,
+            "net_subnet":         s.net_subnet,
+            "net_gateway":        s.net_gateway,
+            "net_dhcp":           s.net_dhcp,
+            "net_error":          s.net_error,
+            # multicast
+            "multicast_address":  s.multicast_address,
+            "multicast_source":   s.multicast_source,
+            "multicast_status":   s.multicast_status,
+            "multicast_error":    s.multicast_error,
+        }
+    return result
+
+@app.get("/api/firmware/{device_id}")
+async def api_firmware_one(device_id: str):
+    s = cache.get(device_id)
+    if s is None:
+        raise HTTPException(404, "Device not found: %s" % device_id)
+    d = next((x for x in DEVICES if x["id"] == device_id), {})
+    return {
+        "device_id":          device_id,
+        "name":               d.get("name"),
+        "ip":                 d.get("ip"),
+        "online":             s.online,
+        "firmware_version":   s.firmware_version,
+        "firmware_model":     s.firmware_model,
+        "firmware_serial":    s.firmware_serial,
+        "firmware_mac":       s.firmware_mac,
+        "firmware_error":     s.firmware_error,
+        "net_hostname":       s.net_hostname,
+        "net_ip":             s.net_ip,
+        "net_subnet":         s.net_subnet,
+        "net_gateway":        s.net_gateway,
+        "net_dhcp":           s.net_dhcp,
+        "net_error":          s.net_error,
+        "multicast_address":  s.multicast_address,
+        "multicast_source":   s.multicast_source,
+        "multicast_status":   s.multicast_status,
+        "multicast_error":    s.multicast_error,
+    }
+
+@app.post("/api/firmware/{device_id}/refresh")
+async def api_firmware_refresh(device_id: str):
+    """Force immediate re-fetch of all device info for one device."""
+    s = cache.get(device_id)
+    if s is None:
+        raise HTTPException(404, "Device not found: %s" % device_id)
+    s.firmware_fetched  = None
+    s.net_fetched       = None
+    s.multicast_fetched = None
+    device = next((d for d in DEVICES if d["id"] == device_id), None)
+    if device is None:
+        raise HTTPException(404, "Device config not found")
+    connector = aiohttp.TCPConnector(ssl=False)
+    async with aiohttp.ClientSession(connector=connector) as session:
+        await fetch_device_extended(session, device)
+    return {
+        "success":           True,
+        "device_id":         device_id,
+        "firmware_version":  s.firmware_version,
+        "net_hostname":      s.net_hostname,
+        "net_ip":            s.net_ip,
+        "multicast_address": s.multicast_address,
+    }
+
+@app.post("/api/firmware/refresh-all")
+async def api_firmware_refresh_all():
+    """Force immediate re-fetch of all device info for ALL devices."""
+    for s in cache.values():
+        s.firmware_fetched  = None
+        s.net_fetched       = None
+        s.multicast_fetched = None
+    asyncio.create_task(background_worker())
+    return {"success": True, "count": len(DEVICES)}
+
+@app.get("/api/export/csv")
+async def api_export_csv():
+    """Export all device info as a CSV file — downloadable from browser."""
+    import csv, io
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "ID", "Name", "Location", "Config IP", "Status",
+        "Firmware Version", "Model", "Serial Number", "MAC Address",
+        "Hostname", "Active IP", "Subnet Mask", "Gateway", "DHCP",
+        "Multicast Address", "Multicast Source", "Multicast Status",
+    ])
+    for d in DEVICES:
+        dev_id = d["id"]
+        s = cache.get(dev_id)
+        if not s:
+            continue
+        writer.writerow([
+            dev_id,
+            d.get("name", ""),
+            d.get("location", ""),
+            d.get("ip", ""),
+            "ONLINE" if s.online else "OFFLINE",
+            s.firmware_version  or "",
+            s.firmware_model    or "",
+            s.firmware_serial   or "",
+            s.firmware_mac      or "",
+            s.net_hostname      or "",
+            s.net_ip            or "",
+            s.net_subnet        or "",
+            s.net_gateway       or "",
+            "DHCP" if s.net_dhcp else "Static" if s.net_dhcp is False else "",
+            s.multicast_address or "",
+            s.multicast_source  or "",
+            s.multicast_status  or "",
+        ])
+    csv_bytes = output.getvalue().encode("utf-8")
+    from datetime import datetime
+    filename = "nvx_devices_%s.csv" % datetime.now().strftime("%Y%m%d_%H%M%S")
+    return Response(
+        content=csv_bytes,
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="%s"' % filename},
+    )
 
 @app.post("/api/devices/{device_id}/unblock")
 async def api_unblock_device(device_id: str):
@@ -474,7 +793,7 @@ if __name__ == "__main__":
 
     print("")
     print("=" * 58)
-    print("  NVX Preview Dashboard  -  HTTP Edition  v4.0")
+    print("  NVX Preview Dashboard  -  HTTP Edition  v3.0")
     print("  http://localhost:%d" % port)
     print("=" * 58)
     print("  Mode     : HTTP preview images (no FFmpeg needed)")

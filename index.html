@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NVX · Live Preview Monitor</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%233b82f6'/%3E%3Crect x='15' y='20' width='70' height='50' fill='none' stroke='%23ffffff' stroke-width='3' rx='3'/%3E%3Crect x='20' y='25' width='60' height='40' fill='%2360a5fa' opacity='0.3'/%3E%3Ccircle cx='30' cy='35' r='3' fill='%23ffffff'/%3E%3Ccircle cx='45' cy='45' r='2.5' fill='%23ffffff'/%3E%3Ccircle cx='70' cy='40' r='3' fill='%23ffffff'/%3E%3Cpath d='M 25 75 L 75 75 L 73 80 L 27 80 Z' fill='%23ffffff'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -19,9 +18,9 @@
   --panel2:      #131820;
   --border:      #1c2535;
   --border2:     #243040;
-  --accent:      #3b82f6;    /* blue — logo match */
-  --accent-dim:  rgba(59,130,246,0.12);
-  --accent-glow: rgba(59,130,246,0.25);
+  --accent:      #4b9ef2;    /* blue */
+  --accent-dim:  rgba(75,158,242,0.12);
+  --accent-glow: rgba(75,158,242,0.25);
   --green:       #2dd4a0;
   --red:         #f24b6a;
   --blue:        #4b9ef2;
@@ -166,7 +165,7 @@ body::before {
 }
 .btn:hover { border-color: var(--accent); color: var(--accent); }
 .btn.primary { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
-.btn.active  { background: var(--accent); color: #000; border-color: var(--accent); }
+.btn.active  { background: var(--accent); color: #fff; border-color: var(--accent); }
 
 /* clock */
 #clock {
@@ -304,7 +303,7 @@ body::before {
 }
 .dev-card:hover {
   border-color: var(--border2);
-  box-shadow: 0 4px 24px rgba(0,0,0,0.4), 0 0 0 1px rgba(232,184,75,0.1);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4), 0 0 0 1px rgba(75,158,242,0.1);
   transform: translateY(-1px);
 }
 .dev-card.offline {
@@ -353,7 +352,7 @@ body::before {
 }
 .card-badge.online  { color: var(--green); border-color: rgba(45,212,160,0.3); background: rgba(45,212,160,0.08); }
 .card-badge.offline { color: var(--red);   border-color: rgba(242,75,106,0.3); background: rgba(242,75,106,0.08); }
-.card-badge.pending { color: var(--accent);border-color: rgba(232,184,75,0.3); background: rgba(232,184,75,0.08); animation: blink-badge 1s step-start infinite; }
+.card-badge.pending { color: var(--accent);border-color: rgba(75,158,242,0.3); background: rgba(75,158,242,0.08); animation: blink-badge 1s step-start infinite; }
 @keyframes blink-badge { 50% { opacity: 0.4; } }
 
 /* preview */
@@ -375,7 +374,7 @@ body::before {
 .card-shimmer {
   position: absolute; inset: 0;
   background: linear-gradient(90deg,
-    transparent 0%, rgba(232,184,75,0.05) 50%, transparent 100%);
+    transparent 0%, rgba(75,158,242,0.05) 50%, transparent 100%);
   background-size: 200% 100%;
   animation: shimmer 1s ease infinite;
   opacity: 0; pointer-events: none; transition: opacity 0.2s;
@@ -521,7 +520,7 @@ body::before {
 #toast.show   { opacity: 1; transform: none; }
 #toast.ok     { border-color: rgba(45,212,160,0.4); }
 #toast.err    { border-color: rgba(242,75,106,0.4); }
-#toast.warn   { border-color: rgba(232,184,75,0.4); }
+#toast.warn   { border-color: rgba(75,158,242,0.4); }
 .toast-dot    { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 #toast.ok  .toast-dot  { background: var(--green); }
 #toast.err .toast-dot  { background: var(--red); }
@@ -544,6 +543,86 @@ body::before {
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ══════════════════════════════════════
+   FIRMWARE BADGE ON CARD FOOTER
+══════════════════════════════════════ */
+.card-foot {
+  display: flex; flex-direction: column;
+  padding: 5px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--panel2);
+  gap: 3px;
+}
+.card-foot-row1 {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.card-foot-row2 {
+  display: flex; align-items: center; justify-content: space-between;
+  min-height: 14px;
+}
+.fw-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 8.5px; letter-spacing: 0.5px;
+  color: var(--blue);
+  opacity: 0.85;
+}
+.fw-badge .fw-ico { font-size: 8px; opacity: 0.6; }
+.fw-badge.loading { color: var(--muted); }
+.fw-badge.error   { color: var(--red); opacity: 0.7; }
+.fw-model {
+  font-size: 8px; color: var(--muted);
+  letter-spacing: 0.5px; text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100px;
+}
+
+/* firmware info panel in lightbox */
+#lb-firmware {
+  display: flex; align-items: center; gap: 16px;
+  font-family: var(--mono); font-size: 10px;
+  color: var(--muted);
+  flex-wrap: wrap; justify-content: center;
+}
+.lb-fw-item { display: flex; align-items: center; gap: 5px; }
+.lb-fw-label { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: 1px; }
+.lb-fw-value { color: var(--blue); font-size: 10px; }
+.lb-fw-value.unknown { color: var(--muted); font-style: italic; }
+
+/* firmware table view */
+#fw-panel {
+  display: none;
+  padding: 14px 18px;
+}
+#fw-panel.show { display: block; }
+.fw-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.fw-table th {
+  text-align: left;
+  padding: 6px 12px;
+  font-family: var(--head);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  background: var(--panel2);
+}
+.fw-table td {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.fw-table tr:hover td { background: var(--panel2); }
+.fw-online  { color: var(--green); }
+.fw-offline { color: var(--red); }
+.fw-version { color: var(--blue); font-family: var(--mono); font-size: 10px; }
+.fw-serial  { color: var(--muted); font-family: var(--mono); font-size: 10px; }
+.fw-mac     { color: var(--muted); font-family: var(--mono); font-size: 10px; }
+.fw-pending { color: var(--accent); font-style: italic; }
 </style>
 </head>
 <body>
@@ -551,33 +630,10 @@ body::before {
 <!-- ══ TOP BAR ════════════════════════════════════════════ -->
 <div id="topbar">
   <div class="brand">
-    <svg width="32" height="32" viewBox="0 0 100 100" style="flex-shrink:0;">
-      <defs>
-        <linearGradient id="avoipGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
-          <stop offset="100%" style="stop-color:#1e40af;stop-opacity:1" />
-        </linearGradient>
-      </defs>
-      <!-- Outer circle -->
-      <circle cx="50" cy="50" r="48" fill="url(#avoipGradient)"/>
-      <!-- Network nodes -->
-      <circle cx="30" cy="30" r="5" fill="#ffffff"/>
-      <circle cx="70" cy="30" r="5" fill="#ffffff"/>
-      <circle cx="50" cy="60" r="5" fill="#ffffff"/>
-      <!-- Network lines connecting nodes -->
-      <line x1="30" y1="30" x2="50" y2="60" stroke="#ffffff" stroke-width="1.5" opacity="0.8"/>
-      <line x1="70" y1="30" x2="50" y2="60" stroke="#ffffff" stroke-width="1.5" opacity="0.8"/>
-      <line x1="30" y1="30" x2="70" y2="30" stroke="#ffffff" stroke-width="1.5" opacity="0.8"/>
-      <!-- Center hub -->
-      <circle cx="50" cy="50" r="3" fill="#60a5fa"/>
-      <!-- Wave indicators (audio/video) -->
-      <path d="M 50 42 Q 52 40 54 42" stroke="#ffffff" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.9"/>
-      <path d="M 50 45 Q 53 42 56 45" stroke="#ffffff" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.7"/>
-      <path d="M 50 48 Q 54 44 58 48" stroke="#ffffff" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.5"/>
-    </svg>
+    <div class="brand-hex">NV</div>
     <div>
-      <div class="brand-label">AVOIP MONITOR</div>
-      <div class="brand-sub">Live Stream Control</div>
+      <div class="brand-label">NVX MONITOR</div>
+      <div class="brand-sub">RTSP Live Preview</div>
     </div>
   </div>
 
@@ -622,6 +678,7 @@ body::before {
     </div>
     <button class="btn" id="pause-btn" onclick="togglePause()">⏸ PAUSE</button>
     <button class="btn primary" onclick="forceRefresh()">↺ REFRESH ALL</button>
+    <button class="btn" id="fw-btn" onclick="toggleFirmwareView()" title="Firmware Table">⚙ FIRMWARE</button>
     <div id="clock">00:00:00</div>
   </div>
 </div>
@@ -654,6 +711,46 @@ body::before {
   </div>
 </div>
 
+<!-- ══ FIRMWARE PANEL ══════════════════════════════════ -->
+<div id="fw-panel">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:0 2px">
+    <div style="font-family:var(--head);font-size:13px;font-weight:700;color:var(--text-bright);letter-spacing:2px">
+      DEVICE INFORMATION TABLE
+      <span style="font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:400;margin-left:8px">
+        firmware · network · multicast — refreshes every 5 min
+      </span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" onclick="refreshAllFirmware()" title="Force re-fetch all device info">↺ REFRESH INFO</button>
+      <button class="btn primary" onclick="downloadCSV()" title="Download as CSV">⬇ EXPORT CSV</button>
+    </div>
+  </div>
+  <table class="fw-table" id="fw-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Device</th>
+        <th>Location</th>
+        <th>Config IP</th>
+        <th>Status</th>
+        <th>Firmware Version</th>
+        <th>Model</th>
+        <th>Serial Number</th>
+        <th>MAC Address</th>
+        <th>Hostname</th>
+        <th>Active IP</th>
+        <th>Subnet</th>
+        <th>Gateway</th>
+        <th>DHCP</th>
+        <th>Multicast Address</th>
+        <th>MC Source</th>
+        <th>MC Status</th>
+      </tr>
+    </thead>
+    <tbody id="fw-tbody"></tbody>
+  </table>
+</div>
+
 <!-- ══ LIGHTBOX ══════════════════════════════════════════ -->
 <div id="lightbox" onclick="closeLB(event)">
   <button id="lb-close" onclick="closeLightbox()">✕</button>
@@ -666,6 +763,32 @@ body::before {
     <span class="m" id="lb-ip">—</span>
     <span class="m" id="lb-loc">—</span>
     <button id="lb-refresh" onclick="refreshLB()">↺ REFRESH</button>
+  </div>
+  <div id="lb-firmware">
+    <div class="lb-fw-item">
+      <span class="lb-fw-label">Firmware</span>
+      <span class="lb-fw-value" id="lb-fw-version">—</span>
+    </div>
+    <div class="lb-fw-item">
+      <span class="lb-fw-label">Model</span>
+      <span class="lb-fw-value" id="lb-fw-model">—</span>
+    </div>
+    <div class="lb-fw-item">
+      <span class="lb-fw-label">Serial</span>
+      <span class="lb-fw-value" id="lb-fw-serial">—</span>
+    </div>
+    <div class="lb-fw-item">
+      <span class="lb-fw-label">MAC</span>
+      <span class="lb-fw-value" id="lb-fw-mac">—</span>
+    </div>
+    <div class="lb-fw-item">
+      <span class="lb-fw-label">Hostname</span>
+      <span class="lb-fw-value" id="lb-fw-hostname">—</span>
+    </div>
+    <div class="lb-fw-item">
+      <span class="lb-fw-label">Multicast</span>
+      <span class="lb-fw-value" id="lb-fw-multicast">—</span>
+    </div>
   </div>
 </div>
 
@@ -779,10 +902,19 @@ function makeCard(d, num) {
     </div>
     <div class="card-progress"><div class="card-progress-fill" id="prog-${d.id}"></div></div>
     <div class="card-foot">
-      <span class="card-loc">${d.location || '—'}</span>
-      <div class="card-meta">
-        <span class="card-ms" id="ms-${d.id}">—</span>
-        <span class="card-ts" id="ts-${d.id}">—</span>
+      <div class="card-foot-row1">
+        <span class="card-loc">${d.location || '—'}</span>
+        <div class="card-meta">
+          <span class="card-ms" id="ms-${d.id}">—</span>
+          <span class="card-ts" id="ts-${d.id}">—</span>
+        </div>
+      </div>
+      <div class="card-foot-row2">
+        <span class="fw-model" id="fwmodel-${d.id}">—</span>
+        <span class="fw-badge loading" id="fw-${d.id}">
+          <span class="fw-ico">⚙</span>
+          <span id="fwver-${d.id}">fetching...</span>
+        </span>
       </div>
     </div>`;
   return card;
@@ -826,8 +958,8 @@ function onErr(deviceId) {
 }
 
 // ─── Status Polling ──────────────────────────────────────────────
-// Polls /api/status to know when backend has fresh frames,
-// then loads them — this is smarter than time-based refresh.
+let firmwareData = {};
+
 async function pollStatus() {
   try {
     const res  = await fetch('/api/status');
@@ -835,10 +967,71 @@ async function pollStatus() {
     devices.forEach(d => {
       const s = data[d.id];
       if (!s) return;
-      // Update capture time badge
+
+      // Update capture time
       const msEl = document.getElementById(`ms-${d.id}`);
-      if (msEl && s.capture_ms) msEl.textContent = `${s.capture_ms}ms`;
+      if (msEl && s.fetch_ms) msEl.textContent = `${s.fetch_ms}ms`;
+
+      // Update firmware badge on card
+      const fwEl      = document.getElementById(`fw-${d.id}`);
+      const fwVerEl   = document.getElementById(`fwver-${d.id}`);
+      const fwModelEl = document.getElementById(`fwmodel-${d.id}`);
+
+      if (fwEl && fwVerEl) {
+        if (s.firmware_version) {
+          fwEl.className    = 'fw-badge';
+          fwVerEl.textContent = s.firmware_version;
+        } else if (s.firmware_error) {
+          fwEl.className    = 'fw-badge error';
+          fwVerEl.textContent = 'fw error';
+        } else {
+          fwEl.className    = 'fw-badge loading';
+          fwVerEl.textContent = 'fetching...';
+        }
+      }
+      if (fwModelEl && s.firmware_model) {
+        fwModelEl.textContent = s.firmware_model;
+      }
+
+      // Cache all device info for table + lightbox
+      firmwareData[d.id] = {
+        // firmware
+        version:    s.firmware_version   || null,
+        model:      s.firmware_model     || null,
+        serial:     s.firmware_serial    || null,
+        mac:        s.firmware_mac       || null,
+        fw_error:   s.firmware_error     || null,
+        // network
+        hostname:   s.net_hostname       || null,
+        net_ip:     s.net_ip             || null,
+        subnet:     s.net_subnet         || null,
+        gateway:    s.net_gateway        || null,
+        dhcp:       s.net_dhcp,
+        net_error:  s.net_error          || null,
+        // multicast
+        multicast:  s.multicast_address  || null,
+        mc_source:  s.multicast_source   || null,
+        mc_status:  s.multicast_status   || null,
+        mc_error:   s.multicast_error    || null,
+        // meta
+        online:     s.online,
+      };
+
+      // Auth blocked — show on badge
+      if (s.auth_blocked) {
+        const badge = document.getElementById(`badge-${d.id}`);
+        if (badge) {
+          badge.className   = 'card-badge offline';
+          badge.textContent = 'AUTH ERR';
+        }
+      }
     });
+
+    // Update firmware table if visible
+    if (document.getElementById('fw-panel').classList.contains('show')) {
+      buildFwTable();
+    }
+
     updateStats();
   } catch(e) { /* silent */ }
 }
@@ -1013,6 +1206,122 @@ function toast(msg, type = '') {
   el.className = `show ${type}`;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.className = '', 2800);
+}
+
+// ─── Firmware Table ──────────────────────────────────────────────
+let fwViewOpen = false;
+
+function toggleFirmwareView() {
+  fwViewOpen = !fwViewOpen;
+  const panel = document.getElementById('fw-panel');
+  const main  = document.getElementById('main');
+  const btn   = document.getElementById('fw-btn');
+  if (fwViewOpen) {
+    panel.classList.add('show');
+    main.style.display = 'none';
+    btn.classList.add('active');
+    buildFwTable();
+    toast('Firmware view — refreshes every 5 min automatically', 'ok');
+  } else {
+    panel.classList.remove('show');
+    main.style.display = '';
+    btn.classList.remove('active');
+  }
+}
+
+function buildFwTable() {
+  const tbody = document.getElementById('fw-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  devices.forEach((d, i) => {
+    const fw     = firmwareData[d.id] || {};
+    const online = fw.online;
+    const mono   = "font-family:var(--mono);font-size:10px;color:var(--muted)";
+    const tr     = document.createElement('tr');
+
+    const fwVer = fw.version && fw.version !== '—'
+      ? `<span style="font-family:var(--mono);font-size:10px;color:var(--blue)">${fw.version}</span>`
+      : fw.fw_error
+        ? `<span style="color:var(--red);font-size:9px">error</span>`
+        : `<span style="color:var(--accent);font-style:italic;font-size:9px">fetching...</span>`;
+
+    const mcCell = fw.multicast
+      ? `<span style="font-family:var(--mono);font-size:10px;color:var(--green)">${fw.multicast}</span>`
+      : `<span style="color:var(--muted);font-size:9px">—</span>`;
+
+    const dhcpCell = fw.dhcp === true
+      ? `<span style="color:var(--blue);font-size:9px">DHCP</span>`
+      : fw.dhcp === false
+        ? `<span style="color:var(--muted);font-size:9px">Static</span>`
+        : '—';
+
+    tr.innerHTML = `
+      <td style="color:var(--muted)">${String(i+1).padStart(2,'0')}</td>
+      <td style="color:var(--text-bright);font-family:var(--head);font-size:13px;white-space:nowrap">${d.name}</td>
+      <td style="color:var(--muted);text-transform:uppercase;font-size:10px;white-space:nowrap">${d.location || '—'}</td>
+      <td style="${mono}">${d.ip}</td>
+      <td style="white-space:nowrap">
+        <span style="font-size:10px;font-family:var(--head);color:${online ? 'var(--green)' : 'var(--red)'}">
+          ● ${online ? 'ONLINE' : 'OFFLINE'}
+        </span>
+      </td>
+      <td>${fwVer}</td>
+      <td style="color:var(--text);font-size:10px;white-space:nowrap">${fw.model || '—'}</td>
+      <td style="${mono}">${fw.serial || '—'}</td>
+      <td style="${mono}">${fw.mac || '—'}</td>
+      <td style="${mono};color:var(--text)">${fw.hostname || '—'}</td>
+      <td style="${mono}">${fw.net_ip || '—'}</td>
+      <td style="${mono}">${fw.subnet || '—'}</td>
+      <td style="${mono}">${fw.gateway || '—'}</td>
+      <td>${dhcpCell}</td>
+      <td>${mcCell}</td>
+      <td style="color:var(--muted);font-size:9px;text-align:center">${fw.mc_source || '—'}</td>
+      <td style="color:var(--muted);font-size:9px">${fw.mc_status || '—'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function refreshAllFirmware() {
+  try {
+    toast('Refreshing all device info...', 'warn');
+    await fetch('/api/firmware/refresh-all', { method: 'POST' });
+    // Reset cached data so table shows fetching...
+    Object.keys(firmwareData).forEach(id => {
+      if (firmwareData[id]) {
+        firmwareData[id].version = null;
+        firmwareData[id].hostname = null;
+        firmwareData[id].multicast = null;
+      }
+    });
+    buildFwTable();
+    toast('Refresh triggered — data will update in ~10s', 'ok');
+  } catch(e) {
+    toast('Refresh failed', 'err');
+  }
+}
+
+function downloadCSV() {
+  toast('Preparing CSV download...', 'ok');
+  window.location.href = '/api/export/csv';
+}
+
+const _origOpenLB = openLB;
+function openLB(deviceId) {
+  _origOpenLB(deviceId);
+  const fw = firmwareData[deviceId] || {};
+  const setEl = (id, val) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = val || '—';
+    el.className   = val && val !== '—' ? 'lb-fw-value' : 'lb-fw-value unknown';
+  };
+  setEl('lb-fw-version',   fw.version);
+  setEl('lb-fw-model',     fw.model);
+  setEl('lb-fw-serial',    fw.serial);
+  setEl('lb-fw-mac',       fw.mac);
+  setEl('lb-fw-hostname',  fw.hostname);
+  setEl('lb-fw-multicast', fw.multicast);
 }
 
 // ─── Go ──────────────────────────────────────────────────────────
