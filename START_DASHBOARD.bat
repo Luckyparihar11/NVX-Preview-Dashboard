@@ -5,7 +5,7 @@ cd /d "%~dp0"
 
 echo.
 echo ============================================================
-echo   NVX RTSP Preview Dashboard  v2.0
+echo   NVX RTSP Preview Dashboard  v3.0
 echo ============================================================
 echo.
 
