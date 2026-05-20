@@ -1,84 +1,385 @@
 [
   {
     "id":           "nvx-01",
-    "name":         "Boardroom",
-    "ip":           "CAFE-16F-363-85-TV-R",
-    "location":     "Floor 0",
+    "name":         "Poppulo Server-01",
+    "ip":           "enc-01-Poppulo-server",
+    "location":     "Poppulo Inputs",
     "username":     "admin",
-    "password":     "Allwave@123",
+    "password":     "Avispl123",
     "preview_path": "/preview/preview_540px.jpeg",
     "use_https":    true
   },
   {
     "id":           "nvx-02",
-    "name":         "Lobby",
-    "ip":           "WELLNESS-16F-SUITE-363-55-TV",
-    "location":     "Floor 1",
+    "name":         "Poppulo Server-02",
+    "ip":           "enc-02-Poppulo-server",
+    "location":     "Poppulo Inputs",
     "username":     "admin",
-    "password":     "Allwave@123",
+    "password":     "Avispl123",
     "preview_path": "/preview/preview_540px.jpeg",
     "use_https":    true
   },
   {
     "id":           "nvx-03",
-    "name":         "Training Room",
-    "ip":           "16F-CAFE-363-85-TV-L",
-    "location":     "Floor 2",
+    "name":         "Poppulo Server-03",
+    "ip":           "enc-03-Poppulo-server",
+    "location":     "Poppulo Inputs",
     "username":     "admin",
-    "password":     "Allwave@123",
+    "password":     "Avispl123",
     "preview_path": "/preview/preview_540px.jpeg",
     "use_https":    true
   },
   {
     "id":           "nvx-04",
-    "name":         "Training Room",
-    "ip":           "CAFE-TAMA-16F-363-POLY-CONTENT",
-    "location":     "Floor 2",
+    "name":         "Poppulo Server-04",
+    "ip":           "enc-04-Poppulo-server",
+    "location":     "Poppulo Inputs",
     "username":     "admin",
-    "password":     "Allwave@123",
+    "password":     "Avispl123",
     "preview_path": "/preview/preview_540px.jpeg",
     "use_https":    true
   },
   {
     "id":           "nvx-05",
-    "name":         "Training Room",
-    "ip":           "CAFE-TAMA-16F-363-POLY-VC",
-    "location":     "Floor 2",
+    "name":         "Poppulo Server-05",
+    "ip":           "enc-05-Poppulo-server",
+    "location":     "Poppulo Inputs",
     "username":     "admin",
-    "password":     "Allwave@123",
+    "password":     "Avispl123",
     "preview_path": "/preview/preview_540px.jpeg",
     "use_https":    true
   },
   {
     "id":           "nvx-06",
-    "name":         "Training Room",
-    "ip":           "RECEPTION-16F-363-DISPLAY",
-    "location":     "Floor 2",
+    "name":         "Poppulo Server-06",
+    "ip":           "enc-06-Poppulo-server",
+    "location":     "Poppulo Inputs",
     "username":     "admin",
-    "password":     "Allwave@123",
+    "password":     "Avispl123",
     "preview_path": "/preview/preview_540px.jpeg",
     "use_https":    true
   },
   {
     "id":           "nvx-07",
-    "name":         "Training Room",
-    "ip":           "L16-CAFE-360-TO-ATLONA-LACTERN",
-    "location":     "Floor 2",
+    "name":         "Poppulo Server-07",
+    "ip":           "enc-07-Poppulo-server",
+    "location":     "Poppulo Inputs",
     "username":     "admin",
-    "password":     "Allwave@123",
+    "password":     "Avispl123",
     "preview_path": "/preview/preview_540px.jpeg",
     "use_https":    true
   },
   {
     "id":           "nvx-08",
-    "name":         "BoardRoom",
-    "ip":           "L16-CAFE-360-TO-ATLONA",
-    "location":     "Floor 10",
+    "name":         "Poppulo Server-08",
+    "ip":           "enc-08-Poppulo-server",
+    "location":     "Poppulo Inputs",
     "username":     "admin",
-    "password":     "Allwave@123",
+    "password":     "Avispl123",
     "preview_path": "/preview/preview_540px.jpeg",
     "use_https":    true
-  }
+  },
+  {
+    "id":           "nvx-09",
+    "name":         "Setup Box-1",
+    "ip":           "enc-01-setup-box",
+    "location":     "Setup Box Inputs",
+    "username":     "admin",
+    "password":     "Avispl123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+  {
+    "id":           "nvx-10",
+    "name":         "Setup Box-2",
+    "ip":           "enc-02-setup-box",
+    "location":     "Setup Box Inputs",
+    "username":     "admin",
+    "password":     "Avispl123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+  {
+    "id":           "nvx-11",
+    "name":         "Setup Box-3",
+    "ip":           "enc-03-setup-box",
+    "location":     "Setup Box Inputs",
+    "username":     "admin",
+    "password":     "Avispl123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+  {
+    "id":           "nvx-12",
+    "name":         "Setup Box-4",
+    "ip":           "enc-04-setup-box",
+    "location":     "Setup Box Inputs",
+    "username":     "admin",
+    "password":     "Avispl123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+  {
+    "id":           "nvx-13",
+    "name":         "Codec-Out-01",
+    "ip":           "enc-codec-out-01",
+    "location":     "Codec Outputs",
+    "username":     "admin",
+    "password":     "Avispl123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+  {
+    "id":           "nvx-14",
+    "name":         "Codec-Out-02",
+    "ip":           "enc-codec-out-02",
+    "location":     "Codec Outputs",
+    "username":     "admin",
+    "password":     "Avispl123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+  {
+    "id":           "nvx-15",
+    "name":         "Soc Input-01",
+    "ip":           "enc-01-soc-input",
+    "location":     "SOC Inputs",
+    "username":     "admin",
+    "password":     "Avispl123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+  {
+    "id":           "nvx-16",
+    "name":         "Soc Input-02",
+    "ip":           "enc-02-soc-input",
+    "location":     "SOC Inputs",
+    "username":     "admin",
+    "password":     "Avispl123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+  {
+    "id":           "nvx-17",
+    "name":         "User Desktop-01",
+    "ip":           "enc-pc-01",
+    "location":     "User Desktops",
+    "username":     "admin",
+    "password":     "Avispl123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+  {
+    "id":           "nvx-18",
+    "name":         "User Desktop-02",
+    "ip":           "enc-pc-02",
+    "location":     "User Desktops",
+    "username":     "admin",
+    "password":     "Avispl123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+  {
+    "id":           "nvx-19",
+    "name":         "User Desktop-03",
+    "ip":           "enc-pc-03",
+    "location":     "User Desktops",
+    "username":     "admin",
+    "password":     "Avispl123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+  {
+    "id":           "nvx-20",
+    "name":         "User Desktop-04",
+    "ip":           "enc-pc-04",
+    "location":     "User Desktops",
+    "username":     "admin",
+    "password":     "Avispl123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+  {
+    "id":           "nvx-21",
+    "name":         "User Desktop-05",
+    "ip":           "enc-pc-05",
+    "location":     "User Desktops",
+    "username":     "admin",
+    "password":     "Avispl123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+  {
+    "id":           "nvx-22",
+    "name":         "User Desktop-06",
+    "ip":           "enc-pc-06",
+    "location":     "User Desktops",
+    "username":     "admin",
+    "password":     "Avispl123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+  {
+    "id":           "nvx-23",
+    "name":         "User Desktop-07",
+    "ip":           "enc-pc-07",
+    "location":     "User Desktops",
+    "username":     "admin",
+    "password":     "Avispl123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+  {
+    "id":           "nvx-24",
+    "name":         "User Desktop-08",
+    "ip":           "enc-pc-08",
+    "location":     "User Desktops",
+    "username":     "admin",
+    "password":     "Avispl123",
+    "preview_path": "/preview/preview_540px.jpeg",
+    "use_https":    true
+  },
+    {
+      "id":           "nvx-25",
+      "name":         "User Desktop-09",
+      "ip":           "enc-pc-09",
+      "location":     "User Desktops",
+      "username":     "admin",
+      "password":     "Avispl123",
+      "preview_path": "/preview/preview_540px.jpeg",
+      "use_https":    true
+    },
+    {
+      "id":           "nvx-26",
+      "name":         "User Desktop-10",
+      "ip":           "enc-pc-10",
+      "location":     "User Desktops",
+      "username":     "admin",
+      "password":     "Avispl123",
+      "preview_path": "/preview/preview_540px.jpeg",
+      "use_https":    true
+    },
+    {
+      "id":           "nvx-27",
+      "name":         "User Desktop-11",
+      "ip":           "enc-pc-11",
+      "location":     "User Desktops",
+      "username":     "admin",
+      "password":     "Avispl123",
+      "preview_path": "/preview/preview_540px.jpeg",
+      "use_https":    true
+    },
+    {
+      "id":           "nvx-28",
+      "name":         "Video Wall-01",
+      "ip":           "dec-wall-01",
+      "location":     "Video Wall",
+      "username":     "admin",
+      "password":     "Avispl123",
+      "preview_path": "/preview/preview_540px.jpeg",
+      "use_https":    true
+    },
+    {
+      "id":           "nvx-29",
+      "name":         "Video Wall-02",
+      "ip":           "dec-wall-02",
+      "location":     "Video Wall",
+      "username":     "admin",
+      "password":     "Avispl123",
+      "preview_path": "/preview/preview_540px.jpeg",
+      "use_https":    true
+    },
+    {
+      "id":           "nvx-30",
+      "name":         "Video Wall-03",
+      "ip":           "dec-wall-03",
+      "location":     "Video Wall",
+      "username":     "admin",
+      "password":     "Avispl123",
+      "preview_path": "/preview/preview_540px.jpeg",
+      "use_https":    true
+    },
+    {
+      "id":           "nvx-31",
+      "name":         "Video Wall-04",
+      "ip":           "dec-wall-04",
+      "location":     "Video Wall",
+      "username":     "admin",
+      "password":     "Avispl123",
+      "preview_path": "/preview/preview_540px.jpeg",
+      "use_https":    true
+    },
+    {
+      "id":           "nvx-32",
+      "name":         "Video Wall-05",
+      "ip":           "dec-wall-05",
+      "location":     "Video Wall",
+      "username":     "admin",
+      "password":     "Avispl123",
+      "preview_path": "/preview/preview_540px.jpeg",
+      "use_https":    true
+    },
+    {
+      "id":           "nvx-33",
+      "name":         "Video Wall-06",
+      "ip":           "dec-wall-06",
+      "location":     "Video Wall",
+      "username":     "admin",
+      "password":     "Avispl123",
+      "preview_path": "/preview/preview_540px.jpeg",
+      "use_https":    true
+    },
+    {
+      "id":           "nvx-34",
+      "name":         "Left-Side-Display",
+      "ip":           "dec-left-display-01",
+      "location":     "ScratchPads",
+      "username":     "admin",
+      "password":     "Avispl123",
+      "preview_path": "/preview/preview_540px.jpeg",
+      "use_https":    true
+    },
+    {
+      "id":           "nvx-35",
+      "name":         "Right-Side-Display",
+      "ip":           "dec-right-display-02",
+      "location":     "ScratchPads",
+      "username":     "admin",
+      "password":     "Avispl123",
+      "preview_path": "/preview/preview_540px.jpeg",
+      "use_https":    true
+    },
+    {
+      "id":           "nvx-36",
+      "name":         "SOC Output-01",
+      "ip":           "dec-01-soc-output",
+      "location":     "SOC Outputs",
+      "username":     "admin",
+      "password":     "Avispl123",
+      "preview_path": "/preview/preview_540px.jpeg",
+      "use_https":    true
+    },
+    {
+      "id":           "nvx-37",
+      "name":         "SOC Output-02",
+      "ip":           "dec-02-soc-output",
+      "location":     "SOC Outputs",
+      "username":     "admin",
+      "password":     "Avispl123",
+      "preview_path": "/preview/preview_540px.jpeg",
+      "use_https":    true
+    },
+    {
+      "id":           "nvx-38",
+      "name":         "Codec-Content",
+      "ip":           "dec-codec-content",
+      "location":     "Codec Outputs",
+      "username":     "admin",
+      "password":     "Avispl123",
+      "preview_path": "/preview/preview_540px.jpeg",
+      "use_https":    true
+    }
+
 ]
 
 

@@ -1,5 +1,5 @@
 {
-  "refresh_interval": 10,
+  "refresh_interval": 3,
   "fetch_timeout": 8,
   "max_concurrent": 8,
   "preview_size": "540px",

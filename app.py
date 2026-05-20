@@ -31,6 +31,7 @@ if sys.platform == "win32":
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 import aiohttp
+import concurrent.futures
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -62,8 +63,12 @@ log.info("Devices  : %s", DEVICES_JSON)
 # ══════════════════════════════════════════════════════════════════
 #  SETTINGS
 # ══════════════════════════════════════════════════════════════════
+# Allowed polling intervals in seconds — shown as options in UI and API
+POLL_INTERVALS = [1, 2, 4, 6]
+
 DEFAULT_SETTINGS = {
-    "refresh_interval": 10,      # seconds between preview fetches
+    "refresh_interval": 10,      # seconds between preview fetches (legacy default)
+    "poll_interval":    4,       # active poll interval — must be one of POLL_INTERVALS
     "fetch_timeout":    8,       # seconds before marking device offline
     "max_concurrent":   8,       # parallel HTTP requests at once
     "preview_size":     "540px", # 135px / 270px / 540px
@@ -189,6 +194,10 @@ class DeviceState:
     multicast_status:  Optional[str]   = None   # e.g. "Stream Started"
     multicast_fetched: Optional[float] = None
     multicast_error:   Optional[str]   = None
+    # ── Session cookie (NVX requires web login before REST API) ──
+    session_cookie:    Optional[str]   = None   # auth cookie after login
+    session_fetched:   Optional[float] = None   # when cookie was obtained
+    session_error:     Optional[str]   = None
 
 cache: Dict[str, DeviceState] = {}
 semaphore: Optional[asyncio.Semaphore] = None
@@ -199,6 +208,167 @@ def rebuild_cache():
 
 rebuild_cache()
 
+
+# ══════════════════════════════════════════════════════════════════
+#  SSH STARTUP COMMANDS
+#  Runs once ever per device — tracked in ssh_done.json next to app.py
+#  Commands: loginattempts 0  and  SETLogoffidletime 0
+#  Purpose:
+#    loginattempts 0    — disables account lockout (0 = unlimited attempts)
+#    SETLogoffidletime 0 — disables idle session timeout (0 = never logs off)
+#  Uses same credentials as web login from devices.json
+#  Requires: pip install paramiko
+# ══════════════════════════════════════════════════════════════════
+
+SSH_DONE_FILE  = BASE_DIR / "ssh_done.json"
+SSH_PORT       = 22
+SSH_TIMEOUT    = 10   # seconds to connect
+SSH_COMMANDS   = [
+    "loginattempts 0",
+    "SETLogoffidletime 0",
+]
+
+def load_ssh_done() -> set:
+    """Load set of device IDs that have already had SSH commands run."""
+    if SSH_DONE_FILE.exists():
+        try:
+            with open(SSH_DONE_FILE, encoding="utf-8") as f:
+                data = json.load(f)
+            return set(data.get("completed", []))
+        except Exception:
+            pass
+    return set()
+
+def save_ssh_done(done: set):
+    """Persist the set of completed device IDs to disk."""
+    try:
+        with open(SSH_DONE_FILE, "w", encoding="utf-8") as f:
+            json.dump({"completed": sorted(done)}, f, indent=2)
+    except Exception as exc:
+        log.error("Could not save ssh_done.json: %s", exc)
+
+def run_ssh_commands_sync(device: dict) -> dict:
+    """
+    Blocking SSH function — runs in a thread pool so it does not
+    block the asyncio event loop.
+    Returns a result dict with success/error info.
+    """
+    dev_id   = device["id"]
+    ip       = device["ip"]
+    username = device.get("username", "admin")
+    password = device.get("password", "")
+
+    result = {
+        "device_id": dev_id,
+        "ip":        ip,
+        "success":   False,
+        "commands":  [],
+        "error":     None,
+    }
+
+    try:
+        import paramiko
+    except ImportError:
+        result["error"] = "paramiko not installed — run: pip install paramiko"
+        return result
+
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    try:
+        log.info("[SSH][%s] Connecting to %s:%d ...", dev_id, ip, SSH_PORT)
+        client.connect(
+            hostname=ip,
+            port=SSH_PORT,
+            username=username,
+            password=password,
+            timeout=SSH_TIMEOUT,
+            look_for_keys=False,
+            allow_agent=False,
+        )
+        log.info("[SSH][%s] Connected — running %d commands", dev_id, len(SSH_COMMANDS))
+
+        for cmd in SSH_COMMANDS:
+            try:
+                stdin, stdout, stderr = client.exec_command(cmd, timeout=SSH_TIMEOUT)
+                out = stdout.read().decode("utf-8", errors="replace").strip()
+                err = stderr.read().decode("utf-8", errors="replace").strip()
+                exit_code = stdout.channel.recv_exit_status()
+                cmd_result = {
+                    "command":   cmd,
+                    "output":    out,
+                    "error":     err,
+                    "exit_code": exit_code,
+                    "ok":        exit_code == 0 or out != "" or err == "",
+                }
+                result["commands"].append(cmd_result)
+                if cmd_result["ok"]:
+                    log.info("[SSH][%s] OK: %s  ->  %s", dev_id, cmd, out or "done")
+                else:
+                    log.warning("[SSH][%s] WARN: %s  err=%s exit=%d",
+                                dev_id, cmd, err, exit_code)
+            except Exception as cmd_exc:
+                result["commands"].append({
+                    "command": cmd, "output": "", "error": str(cmd_exc),
+                    "exit_code": -1, "ok": False,
+                })
+                log.warning("[SSH][%s] Command failed: %s  error=%s", dev_id, cmd, cmd_exc)
+
+        result["success"] = True
+
+    except Exception as exc:
+        result["error"] = str(exc)
+        log.warning("[SSH][%s] Connection failed: %s", dev_id, exc)
+    finally:
+        client.close()
+
+    return result
+
+async def run_ssh_startup():
+    """
+    On startup: for each device not yet in ssh_done.json,
+    run SSH commands in a thread pool (non-blocking).
+    Marks device as done after success and saves to ssh_done.json.
+    """
+    done = load_ssh_done()
+    pending = [d for d in DEVICES if d["id"] not in done]
+
+    if not pending:
+        log.info("[SSH] All devices already configured — skipping SSH startup")
+        return
+
+    log.info("[SSH] Running startup commands on %d device(s) not yet configured",
+             len(pending))
+
+    loop = asyncio.get_event_loop()
+    executor = concurrent.futures.ThreadPoolExecutor(
+        max_workers=min(len(pending), 5),
+        thread_name_prefix="nvx-ssh",
+    )
+
+    async def run_one(device: dict):
+        result = await loop.run_in_executor(
+            executor, run_ssh_commands_sync, device
+        )
+        if result["success"]:
+            done.add(device["id"])
+            save_ssh_done(done)
+            log.info("[SSH][%s] Done — marked as configured", device["id"])
+        else:
+            log.warning("[SSH][%s] Failed — will retry on next startup. Error: %s",
+                        device["id"], result["error"])
+        return result
+
+    # Run all pending devices concurrently (up to 5 at once)
+    results = await asyncio.gather(*[run_one(d) for d in pending])
+
+    success = sum(1 for r in results if r["success"])
+    failed  = len(results) - success
+    log.info("[SSH] Startup complete — %d succeeded, %d failed", success, failed)
+    if failed > 0:
+        log.info("[SSH] Failed devices will be retried on next app.py start")
+
+    executor.shutdown(wait=False)
 
 # ══════════════════════════════════════════════════════════════════
 #  EXTENDED DEVICE INFO FETCH
@@ -215,19 +385,136 @@ def _base_url(device: dict) -> str:
     scheme = "https" if device.get("use_https", False) else "http"
     return "%s://%s" % (scheme, device["ip"])
 
-async def _get_json(session, url, auth, timeout):
-    """Helper — GET JSON, returns parsed dict or None on any error."""
-    try:
-        async with session.get(
-            url, auth=auth,
-            timeout=aiohttp.ClientTimeout(total=timeout),
-            ssl=False,
-        ) as resp:
-            if resp.status == 200:
-                return await resp.json(content_type=None)
-    except Exception:
-        pass
+# Session cookie expires after 1 hour on most NVX firmware
+SESSION_TTL = 3600
+
+async def _login_session(device: dict, tout: float) -> Optional[str]:
+    """
+    Log in to NVX web interface and return the session cookie string.
+    NVX requires a browser-style form login before accepting REST API calls.
+    Tries two known login endpoints used across different NVX firmware versions.
+    Returns cookie string on success, None on failure.
+    """
+    base = _base_url(device)
+    u    = device.get("username", "")
+    p    = device.get("password", "")
+
+    # Login form payloads — NVX firmware uses one of these two paths
+    login_attempts = [
+        # Newer firmware — JSON body
+        {
+            "url":     base + "/userlogin.html",
+            "data":    {"login": u, "passwd": p},
+            "headers": {"Content-Type": "application/x-www-form-urlencoded"},
+        },
+        # Alternative path some firmware versions use
+        {
+            "url":     base + "/Device/UserSession/",
+            "data":    None,
+            "json":    {"Device": {"UserSession": {"UserName": u, "Password": p}}},
+            "headers": {},
+        },
+    ]
+
+    # Use a fresh per-device connector so cookies don't cross-contaminate
+    connector = aiohttp.TCPConnector(ssl=False)
+    jar       = aiohttp.CookieJar(unsafe=True)
+
+    async with aiohttp.ClientSession(connector=connector, cookie_jar=jar) as login_sess:
+        for attempt in login_attempts:
+            try:
+                kwargs = {
+                    "timeout": aiohttp.ClientTimeout(total=tout),
+                    "ssl":     False,
+                    "headers": attempt.get("headers", {}),
+                    "allow_redirects": True,
+                }
+                if attempt.get("json"):
+                    kwargs["json"] = attempt["json"]
+                else:
+                    kwargs["data"] = attempt["data"]
+
+                async with login_sess.post(attempt["url"], **kwargs) as resp:
+                    # Accept 200 or 302 redirect — both mean login was processed
+                    if resp.status in (200, 302, 303):
+                        # Extract all cookies as a single header string
+                        cookies = login_sess.cookie_jar.filter_cookies(attempt["url"])
+                        if cookies:
+                            cookie_str = "; ".join(
+                                "%s=%s" % (k, v.value) for k, v in cookies.items()
+                            )
+                            log.info("[%s] Session login OK via %s | cookies: %s",
+                                     device["id"], attempt["url"],
+                                     list(cookies.keys()))
+                            return cookie_str
+                        # No cookies but 200 — try Basic Auth fallback on REST endpoints
+                        log.debug("[%s] Login returned %d but no cookies — will try Basic Auth",
+                                  device["id"], resp.status)
+            except Exception as exc:
+                log.debug("[%s] Login attempt failed (%s): %s",
+                          device["id"], attempt["url"], exc)
+
     return None
+
+async def _get_json(device: dict, url: str, session_cookie: Optional[str],
+                    tout: float) -> Optional[dict]:
+    """
+    GET JSON from a NVX REST endpoint.
+    Tries session cookie first, then falls back to Basic Auth.
+    """
+    u    = device.get("username", "")
+    p    = device.get("password", "")
+
+    # Build headers — prefer session cookie, fall back to Basic Auth
+    headers = {}
+    auth    = None
+    if session_cookie:
+        headers["Cookie"] = session_cookie
+    else:
+        auth = aiohttp.BasicAuth(login=u, password=p, encoding="latin1")
+
+    connector = aiohttp.TCPConnector(ssl=False)
+    async with aiohttp.ClientSession(connector=connector) as sess:
+        try:
+            async with sess.get(
+                url,
+                headers=headers,
+                auth=auth,
+                timeout=aiohttp.ClientTimeout(total=tout),
+                ssl=False,
+            ) as resp:
+                if resp.status == 200:
+                    return await resp.json(content_type=None)
+                elif resp.status == 401:
+                    log.debug("[%s] GET %s → 401 (session expired?)", device["id"], url)
+                    return None
+                else:
+                    log.debug("[%s] GET %s → %d", device["id"], url, resp.status)
+                    return None
+        except Exception as exc:
+            log.debug("[%s] GET %s failed: %s", device["id"], url, exc)
+            return None
+
+async def _ensure_session(device: dict, s: "DeviceState", tout: float):
+    """
+    Ensure a valid session cookie exists for this device.
+    Refreshes if expired or missing.
+    """
+    now = time.time()
+    if s.session_cookie and s.session_fetched and (now - s.session_fetched) < SESSION_TTL:
+        return  # Cookie still valid
+
+    log.info("[%s] Obtaining session cookie via web login...", device["id"])
+    cookie = await _login_session(device, tout)
+    if cookie:
+        s.session_cookie  = cookie
+        s.session_fetched = now
+        s.session_error   = None
+    else:
+        s.session_cookie  = None
+        s.session_error   = "Login failed — check credentials"
+        log.warning("[%s] Session login failed — REST API calls will use Basic Auth fallback",
+                    device["id"])
 
 async def fetch_device_extended(session: aiohttp.ClientSession, device: dict):
     """Fetch firmware, network, and multicast info for one device."""
@@ -244,17 +531,18 @@ async def fetch_device_extended(session: aiohttp.ClientSession, device: dict):
         return
 
     base = _base_url(device)
-    u    = device.get("username")
-    p    = device.get("password")
-    auth = aiohttp.BasicAuth(login=u, password=p, encoding="latin1") if u and p else None
     tout = SETTINGS["fetch_timeout"]
 
-    # ── Fetch all 3 endpoints concurrently ───────────────────
+    # Ensure we have a valid session cookie before hitting REST endpoints
+    await _ensure_session(device, s, tout)
+    cookie = s.session_cookie
+
+    # ── Fetch all endpoints concurrently using session cookie ─
     dev_data, eth_data, tx_data, rx_data = await asyncio.gather(
-        _get_json(session, base + "/Device/DeviceInfo/",     auth, tout) if fw_due  else asyncio.sleep(0),
-        _get_json(session, base + "/Device/Ethernet/",       auth, tout) if net_due else asyncio.sleep(0),
-        _get_json(session, base + "/Device/StreamTransmit/", auth, tout) if mc_due  else asyncio.sleep(0),
-        _get_json(session, base + "/Device/StreamReceive/",  auth, tout) if mc_due  else asyncio.sleep(0),
+        _get_json(device, base + "/Device/DeviceInfo/",     cookie, tout) if fw_due  else asyncio.sleep(0),
+        _get_json(device, base + "/Device/Ethernet/",       cookie, tout) if net_due else asyncio.sleep(0),
+        _get_json(device, base + "/Device/StreamTransmit/", cookie, tout) if mc_due  else asyncio.sleep(0),
+        _get_json(device, base + "/Device/StreamReceive/",  cookie, tout) if mc_due  else asyncio.sleep(0),
     )
 
     # ── DeviceInfo ───────────────────────────────────────────
@@ -448,18 +736,46 @@ async def refresh_device(session: aiohttp.ClientSession, device: dict):
         # Fetch firmware info in background (non-blocking, rate-limited internally)
         asyncio.create_task(fetch_firmware_info(session, device))
 
+def get_poll_interval() -> float:
+    """
+    Returns the active poll interval in seconds.
+    Reads from SETTINGS["poll_interval"] and validates against POLL_INTERVALS.
+    Falls back to the closest allowed value if out of range.
+    """
+    requested = float(SETTINGS.get("poll_interval", 4))
+    if requested in POLL_INTERVALS:
+        return requested
+    # Find closest allowed interval
+    closest = min(POLL_INTERVALS, key=lambda x: abs(x - requested))
+    log.warning(
+        "poll_interval %.1fs not in allowed values %s — using %.1fs",
+        requested, POLL_INTERVALS, closest
+    )
+    return float(closest)
+
+def set_poll_interval(seconds: float) -> float:
+    """
+    Set poll interval live — no restart needed.
+    Validates against POLL_INTERVALS, returns the value actually set.
+    """
+    if seconds not in POLL_INTERVALS:
+        seconds = min(POLL_INTERVALS, key=lambda x: abs(x - seconds))
+    SETTINGS["poll_interval"] = seconds
+    log.info("Poll interval changed to %.1fs", seconds)
+    return seconds
+
 async def background_worker():
     global semaphore
     semaphore = asyncio.Semaphore(SETTINGS["max_concurrent"])
-    interval  = SETTINGS["refresh_interval"]
 
     if not DEVICES:
         log.warning("No devices configured - edit devices.json and restart")
         return
 
+    interval = get_poll_interval()
     log.info(
-        "HTTP worker started - %d devices | interval=%ds | concurrency=%d",
-        len(DEVICES), interval, SETTINGS["max_concurrent"],
+        "HTTP worker started - %d devices | poll=%ds | allowed=%s | concurrency=%d",
+        len(DEVICES), interval, POLL_INTERVALS, SETTINGS["max_concurrent"],
     )
 
     # Shared aiohttp session for all devices (connection pooling)
@@ -472,24 +788,29 @@ async def background_worker():
     )
 
     async with aiohttp.ClientSession(connector=connector) as session:
-        # First pass - stagger so we don't hit all devices simultaneously
-        stagger = min(0.5, interval / max(len(DEVICES), 1))
+        # First pass - stagger so we don't spike the network simultaneously
+        interval = get_poll_interval()
+        stagger  = min(0.3, interval / max(len(DEVICES), 1))
         for i, device in enumerate(DEVICES):
             asyncio.create_task(_delayed_start(session, device, i * stagger))
 
-        # Wait for the first full wave
+        # Wait for the first full wave to complete
         await asyncio.sleep(interval + 2)
 
-        # Continuous refresh loop
+        # Continuous refresh loop — reads interval fresh each cycle
+        # so changes via /api/poll/set take effect immediately
         while True:
-            t0 = time.monotonic()
+            interval = get_poll_interval()
+            t0       = time.monotonic()
+
             await asyncio.gather(*[refresh_device(session, d) for d in DEVICES])
+
             elapsed   = time.monotonic() - t0
-            sleep_for = max(0.5, interval - elapsed)
+            sleep_for = max(0.1, interval - elapsed)
             online    = sum(1 for s in cache.values() if s.online)
             log.info(
-                "Cycle done %.1fs | %d/%d online | sleep %.1fs",
-                elapsed, online, len(DEVICES), sleep_for,
+                "Cycle done %.1fs | %d/%d online | poll=%ds | sleep %.1fs",
+                elapsed, online, len(DEVICES), interval, sleep_for,
             )
             await asyncio.sleep(sleep_for)
 
@@ -503,6 +824,9 @@ async def _delayed_start(session: aiohttp.ClientSession, device: dict, delay: fl
 # ══════════════════════════════════════════════════════════════════
 @asynccontextmanager
 async def lifespan(application: FastAPI):
+    # Run SSH startup commands on any devices not yet configured
+    asyncio.create_task(run_ssh_startup())
+    # Start main preview + device info polling worker
     asyncio.create_task(background_worker())
     yield
 
@@ -700,6 +1024,89 @@ async def api_firmware_refresh_all():
     asyncio.create_task(background_worker())
     return {"success": True, "count": len(DEVICES)}
 
+# ── Poll Interval API ──────────────────────────────────────────────
+@app.get("/api/poll")
+async def api_poll_get():
+    """Get current poll interval and all allowed options."""
+    return {
+        "current_interval": get_poll_interval(),
+        "allowed_intervals": POLL_INTERVALS,
+        "unit": "seconds",
+    }
+
+@app.post("/api/poll/set/{seconds}")
+async def api_poll_set(seconds: float):
+    """
+    Change poll interval live — no restart needed.
+    Allowed values: 1, 2, 4, 6 seconds.
+    Example: POST /api/poll/set/2
+    """
+    if seconds not in POLL_INTERVALS:
+        raise HTTPException(
+            400,
+            "Invalid interval %.1fs — allowed values: %s" % (seconds, POLL_INTERVALS)
+        )
+    actual = set_poll_interval(seconds)
+    return {
+        "success":          True,
+        "poll_interval":    actual,
+        "allowed_intervals": POLL_INTERVALS,
+        "message":          "Poll interval set to %.1fs — takes effect next cycle" % actual,
+    }
+
+@app.get("/api/ssh/status")
+async def api_ssh_status():
+    """Returns which devices have had SSH commands applied and which are pending."""
+    done = load_ssh_done()
+    result = []
+    for d in DEVICES:
+        result.append({
+            "device_id": d["id"],
+            "name":      d.get("name"),
+            "ip":        d.get("ip"),
+            "ssh_done":  d["id"] in done,
+        })
+    return {
+        "total":    len(DEVICES),
+        "done":     sum(1 for r in result if r["ssh_done"]),
+        "pending":  sum(1 for r in result if not r["ssh_done"]),
+        "devices":  result,
+    }
+
+@app.post("/api/ssh/reset")
+async def api_ssh_reset():
+    """
+    Clear ssh_done.json so ALL devices run SSH commands again on next startup.
+    Use this if you added new devices or want to re-apply commands.
+    """
+    if SSH_DONE_FILE.exists():
+        SSH_DONE_FILE.unlink()
+    return {"success": True, "message": "SSH done file cleared — commands will re-run on next startup"}
+
+@app.post("/api/ssh/reset/{device_id}")
+async def api_ssh_reset_one(device_id: str):
+    """Remove one device from ssh_done.json so it re-runs on next startup."""
+    done = load_ssh_done()
+    if device_id not in done:
+        return {"success": False, "message": "Device not in done list"}
+    done.discard(device_id)
+    save_ssh_done(done)
+    return {"success": True, "device_id": device_id, "message": "Will re-run SSH on next startup"}
+
+@app.post("/api/ssh/run/{device_id}")
+async def api_ssh_run_now(device_id: str):
+    """Run SSH commands on one specific device right now (regardless of done status)."""
+    device = next((d for d in DEVICES if d["id"] == device_id), None)
+    if device is None:
+        raise HTTPException(404, "Device not found: %s" % device_id)
+    loop    = asyncio.get_event_loop()
+    result  = await loop.run_in_executor(None, run_ssh_commands_sync, device)
+    if result["success"]:
+        done = load_ssh_done()
+        done.add(device_id)
+        save_ssh_done(done)
+    return result
+
 @app.get("/api/export/csv")
 async def api_export_csv():
     """Export all device info as a CSV file — downloadable from browser."""
@@ -761,13 +1168,14 @@ async def api_unblock_device(device_id: str):
 async def api_health():
     online = sum(1 for s in cache.values() if s.online)
     return {
-        "total":            len(DEVICES),
-        "online":           online,
-        "offline":          len(DEVICES) - online,
-        "refresh_interval": SETTINGS["refresh_interval"],
-        "preview_size":     SETTINGS.get("preview_size", "540px"),
-        "mode":             "HTTP preview (no FFmpeg)",
-        "platform":         sys.platform,
+        "total":             len(DEVICES),
+        "online":            online,
+        "offline":           len(DEVICES) - online,
+        "poll_interval":     get_poll_interval(),
+        "allowed_intervals": POLL_INTERVALS,
+        "preview_size":      SETTINGS.get("preview_size", "540px"),
+        "mode":              "HTTP preview (no FFmpeg)",
+        "platform":          sys.platform,
     }
 
 @app.get("/api/settings")
@@ -798,7 +1206,7 @@ if __name__ == "__main__":
     print("=" * 58)
     print("  Mode     : HTTP preview images (no FFmpeg needed)")
     print("  Devices  : %d loaded" % len(DEVICES))
-    print("  Refresh  : every %ds" % SETTINGS["refresh_interval"])
+    print("  Poll     : every %ds  (options: %s)" % (get_poll_interval(), POLL_INTERVALS))
     print("  Quality  : %s preview" % SETTINGS.get("preview_size", "540px"))
     print("  Workers  : %d concurrent" % SETTINGS["max_concurrent"])
     if not DEVICES:
